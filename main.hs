@@ -131,34 +131,34 @@ data Identifier
 --comb (Just x) f = f x
 
 
--- TO-DO: merge combine & combineVar
+-- TO-DO: merge combine & combine
 -- maybe deprecated
 -- combine is an operator that merges two tokens
 combine :: Token -> Token -> Token
 combine (StringIdentifier str) (LowerLetter ltr) = StringIdentifier $ str ++ [ltr]
 combine (StringIdentifier str) (UpperLetter ltr) = StringIdentifier $ str ++ [ltr]
 combine (StringIdentifier str) (Numb num) = StringIdentifier $ str ++ [intToDigit num]
+combine (StringIdentifier str) (StringVariable var) = StringIdentifier $ str ++ var -- new
+combine (StringIdentifier str1) (StringIdentifier str2) = StringIdentifier $ str1 ++ str2 -- new
 combine (LowerLetter ltr) (StringIdentifier str)  = StringIdentifier $ ltr : str
+combine (LowerLetter ltr) (StringVariable str)  = StringIdentifier $ ltr : str -- new
 combine (LowerLetter lltr) (UpperLetter ultr) = StringIdentifier $ lltr : [ultr]
 combine (LowerLetter ltr1) (LowerLetter ltr2) = StringIdentifier $ ltr1 : [ltr2]
 combine (LowerLetter ltr) (Numb num) = StringIdentifier $ ltr : [intToDigit num]
+combine (StringVariable str) (LowerLetter ltr) = StringVariable $ str ++ [ltr]
+combine (StringVariable str) (UpperLetter ltr) = StringVariable $ str ++ [ltr]
+combine (StringVariable str) (Numb num) = StringVariable $ str ++ [intToDigit num]
+combine (StringVariable var) (StringIdentifier str) = StringVariable $ var ++ str -- here
+combine (StringVariable var1) (StringVariable var2) = StringVariable $ var1 ++ var2 -- new
+combine (UpperLetter ltr) (StringIdentifier str)  = StringVariable $ ltr : str
+combine (UpperLetter ltr) (StringVariable str)  = StringVariable $ ltr : str -- new
+combine (UpperLetter lltr) (UpperLetter ultr) = StringVariable $ lltr : [ultr]
+combine (UpperLetter ltr1) (LowerLetter ltr2) = StringVariable $ ltr1 : [ltr2]
+combine (UpperLetter ltr) (Numb num) = StringVariable $ ltr : [intToDigit num]
 combine smt None = smt
 combine None smt = smt
 -- more patterns
 combine _ _ = None
-
-combineVar :: Token -> Token -> Token
-combineVar (StringVariable str) (LowerLetter ltr) = StringVariable $ str ++ [ltr]
-combineVar (StringVariable str) (UpperLetter ltr) = StringVariable $ str ++ [ltr]
-combineVar (StringVariable str) (Numb num) = StringVariable $ str ++ [intToDigit num]
-combineVar (UpperLetter ltr) (StringVariable str)  = StringVariable $ ltr : str
-combineVar (UpperLetter lltr) (UpperLetter ultr) = StringVariable $ lltr : [ultr]
-combineVar (UpperLetter ltr1) (LowerLetter ltr2) = StringVariable $ ltr1 : [ltr2]
-combineVar (UpperLetter ltr) (Numb num) = StringVariable $ ltr : [intToDigit num]
-combineVar smt None = smt
-combineVar None smt = smt
--- more patterns
-combineVar _ _ = None
 
 
 -- . . . code . . . 
@@ -300,7 +300,7 @@ identifier = do
                 UpperLetter l -> return $ curr `combine` next
                 Numb n -> return $ curr `combine` next
                 StringIdentifier s -> return $ curr `combine` next
-                _ -> return curr
+                _ -> return $ curr `combine` StringIdentifier ""
         _ -> cerror "Cannot parse identifier!"
 
 variable :: Parse Token
@@ -311,12 +311,12 @@ variable = do
             curr <- expect $ UpperLetter l
             next <- readString
             case next of
-                -- the next 3 lines are for the corner case when the string if 2-lettered
-                LowerLetter l -> return $ curr `combineVar` next
-                UpperLetter l -> return $ curr `combineVar` next
-                Numb n -> return $ curr `combineVar` next
-                StringVariable s -> return $ curr `combineVar` next
-                _ -> return curr
+                LowerLetter l -> return $ curr `combine` next
+                UpperLetter l -> return $ curr `combine` next
+                Numb n -> return $ curr `combine` next
+                StringIdentifier s -> return $ curr `combine` next
+                -- StringVariable s -> return $ curr `combine` next -- cause of Issue 2
+                _ -> return $ curr `combine` StringVariable ""
         _ -> cerror "Cannot parse variable!"
 
 space :: Parse Token
@@ -366,8 +366,6 @@ specCharacter = do
 --             expect Dot
 --             return $ Fact Atom name
 --         _ -> cerror"Cannot parse fact!"
-        
-        
 
         
 -- Tests
@@ -382,7 +380,10 @@ removespace (x:xs) = x : removespace xs
 
 data Program a = Program [a] deriving (Show)
 
--- ISSUE 1: if an identifier string consists of 2 characters then the last character is omitted
+-- ISSUES
+-- ISSUE 1: FIXED: if an identifier string consists of 2 characters then the last character is omitted
+-- ISSUE 2: reproduced: if a variable string consists of more than 2 characters then only the first character is saved
+--          expection: when the second letter is also uppercase this is not the case
 
 program :: Parse (Program Token)
 program = oneOf 0 "Cannot parse program" [do
