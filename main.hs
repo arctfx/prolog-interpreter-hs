@@ -15,19 +15,25 @@
 {-# OPTIONS_GHC -Wno-noncanonical-monad-instances #-}
 {-# HLINT ignore "Use lambda-case" #-}
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+{-# HLINT ignore "Use <$>" #-}
 
 --import Data.Char (intToDigit)
 --import Tokenize
 import Data.Char (intToDigit, isAsciiUpper, isAsciiLower, isSpace)
-import Prelude hiding (read)
+import Prelude hiding (read, seq)
 
 ----------------------------------------------------------------
 -- MODULE TOKENIZE ---------------------------------------------
 
 data Token
     --
-    = StringIdentifier String
-    | StringVariable String
+    = Term Term
+    -- | FactTkn Atom -- not needed
+    | QueryTkn Atom 
+    | RuleTkn Atom [Token] -- [Term]
+    | AtomTkn Atom
+    | IdentifierTkn String
+    | VariableTkn String
     | QueryOperator
     | RuleOperator
     | Dot
@@ -43,7 +49,19 @@ data Token
     | Dash
     | Questionmark -- maybe used in the future
     | None -- actually a good idea to stick it by
+    | Undefined -- for undefined symbols
     deriving (Show, Eq)
+
+-- for printing purposes
+instance Show Term where
+    show :: Term -> String
+    show (JustAtom atom) = show atom
+    show (JustConstant name) = name
+    show (JustVariable name) = name
+
+instance Show Atom where
+    show :: Atom -> String
+    show (Atom name args) = name ++ "( " ++ show args ++ " )" 
 
 toNumb :: Char -> Int
 toNumb ch
@@ -77,7 +95,7 @@ tokenizeChar x
     | x == ')' = CloseBracket
     | x == ',' = Comma
     | x == '?' = Questionmark
-    | otherwise = None -- undefined characters
+    | otherwise = Undefined -- undefined characters -- should throw exception
 
 tokenize :: String -> [Token]
 tokenize [] = []
@@ -100,30 +118,34 @@ data AST
     = Rule Atom [Atom]
     | Fact Atom
     -- Query
-    deriving (Show)
+    deriving (Show, Eq)
 
 data Term
-    = JustConstant Constant
-    | JustVariable Variable
+    = JustConstant String -- Constant
+    | JustVariable String -- Variable
     | JustAtom Atom
-    deriving (Show)
+    deriving (Eq)
 
 data Atom
-    = Atom Identifier [Term]
+    = Atom String [Token]
+    -- String [Term]
     -- Identifier Term [Term]
-    deriving (Show)
+    deriving (Eq)
 
+-- deprecated
 data Variable
     = Variable String
-    deriving (Show)
+    deriving (Show, Eq)
 
+-- deprecated
 data Constant
     = Constant Identifier
-    deriving (Show)
+    deriving (Show, Eq)
 
+-- deprecated
 data Identifier
     = Identifier String
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- comb is a combinator for sequencing operations that return Maybe
 --comb :: Maybe a -> (a -> Maybe b) -> Maybe b
@@ -135,28 +157,30 @@ data Identifier
 -- maybe deprecated
 -- combine is an operator that merges two tokens
 combine :: Token -> Token -> Token
-combine (StringIdentifier str) (LowerLetter ltr) = StringIdentifier $ str ++ [ltr]
-combine (StringIdentifier str) (UpperLetter ltr) = StringIdentifier $ str ++ [ltr]
-combine (StringIdentifier str) (Numb num) = StringIdentifier $ str ++ [intToDigit num]
-combine (StringIdentifier str) (StringVariable var) = StringIdentifier $ str ++ var -- new
-combine (StringIdentifier str1) (StringIdentifier str2) = StringIdentifier $ str1 ++ str2 -- new
-combine (LowerLetter ltr) (StringIdentifier str)  = StringIdentifier $ ltr : str
-combine (LowerLetter ltr) (StringVariable str)  = StringIdentifier $ ltr : str -- new
-combine (LowerLetter lltr) (UpperLetter ultr) = StringIdentifier $ lltr : [ultr]
-combine (LowerLetter ltr1) (LowerLetter ltr2) = StringIdentifier $ ltr1 : [ltr2]
-combine (LowerLetter ltr) (Numb num) = StringIdentifier $ ltr : [intToDigit num]
-combine (StringVariable str) (LowerLetter ltr) = StringVariable $ str ++ [ltr]
-combine (StringVariable str) (UpperLetter ltr) = StringVariable $ str ++ [ltr]
-combine (StringVariable str) (Numb num) = StringVariable $ str ++ [intToDigit num]
-combine (StringVariable var) (StringIdentifier str) = StringVariable $ var ++ str -- here
-combine (StringVariable var1) (StringVariable var2) = StringVariable $ var1 ++ var2 -- new
-combine (UpperLetter ltr) (StringIdentifier str)  = StringVariable $ ltr : str
-combine (UpperLetter ltr) (StringVariable str)  = StringVariable $ ltr : str -- new
-combine (UpperLetter lltr) (UpperLetter ultr) = StringVariable $ lltr : [ultr]
-combine (UpperLetter ltr1) (LowerLetter ltr2) = StringVariable $ ltr1 : [ltr2]
-combine (UpperLetter ltr) (Numb num) = StringVariable $ ltr : [intToDigit num]
+combine (IdentifierTkn str) (LowerLetter ltr) = IdentifierTkn $ str ++ [ltr]
+combine (IdentifierTkn str) (UpperLetter ltr) = IdentifierTkn $ str ++ [ltr]
+combine (IdentifierTkn str) (Numb num) = IdentifierTkn $ str ++ [intToDigit num]
+combine (IdentifierTkn str) (VariableTkn var) = IdentifierTkn $ str ++ var -- new
+combine (IdentifierTkn str1) (IdentifierTkn str2) = IdentifierTkn $ str1 ++ str2 -- new
+combine (LowerLetter ltr) (IdentifierTkn str)  = IdentifierTkn $ ltr : str
+combine (LowerLetter ltr) (VariableTkn str)  = IdentifierTkn $ ltr : str -- new
+combine (LowerLetter lltr) (UpperLetter ultr) = IdentifierTkn $ lltr : [ultr]
+combine (LowerLetter ltr1) (LowerLetter ltr2) = IdentifierTkn $ ltr1 : [ltr2]
+combine (LowerLetter ltr) (Numb num) = IdentifierTkn $ ltr : [intToDigit num]
+combine (VariableTkn str) (LowerLetter ltr) = VariableTkn $ str ++ [ltr]
+combine (VariableTkn str) (UpperLetter ltr) = VariableTkn $ str ++ [ltr]
+combine (VariableTkn str) (Numb num) = VariableTkn $ str ++ [intToDigit num]
+combine (VariableTkn var) (IdentifierTkn str) = VariableTkn $ var ++ str -- here
+combine (VariableTkn var1) (VariableTkn var2) = VariableTkn $ var1 ++ var2 -- new
+combine (UpperLetter ltr) (IdentifierTkn str)  = VariableTkn $ ltr : str
+combine (UpperLetter ltr) (VariableTkn str)  = VariableTkn $ ltr : str -- new
+combine (UpperLetter lltr) (UpperLetter ultr) = VariableTkn $ lltr : [ultr]
+combine (UpperLetter ltr1) (LowerLetter ltr2) = VariableTkn $ ltr1 : [ltr2]
+combine (UpperLetter ltr) (Numb num) = VariableTkn $ ltr : [intToDigit num]
 combine smt None = smt
 combine None smt = smt
+combine smt Space = smt
+combine Space smt = smt
 -- more patterns
 combine _ _ = None
 
@@ -247,6 +271,8 @@ peek = Parse
             [] -> ParseResult [] None
             t:ts -> ParseResult (t:ts) t
 
+-- except -- similar to expect but removes the expected from the list
+
 -- used for reading several characters at once
 -- a string contains only lowercase and upper letters and digits
 readString :: Parse Token
@@ -269,6 +295,7 @@ readString = do
         _ -> return None -- stops reading otherwise
 
 
+-- combinators
 
 -- similar to expect?
 -- oneOf :: LineNumber, ErrorMessage, Eithers -> Found
@@ -276,16 +303,22 @@ oneOf :: Int -> String -> [Parse a] -> Parse a
 oneOf line msg possibles = Parse $ \tokens ->
     case possibles of
         [] -> ParseError line "List is empty!"
-        (Parse x) : xs -> --func : funcs
+        (Parse x) : xs -> -- func : funcs
             case x tokens of
                 (ParseError l _) -> let (Parse x') = oneOf l msg xs in x' tokens
-                (ParseResult tkns a) -> ParseResult tkns a --here
+                (ParseResult tkns a) -> ParseResult tkns a -- here
 
+-- applicative
+seq :: Parse (Program Token) -> Parse (Program Token) -> Parse (Program Token)
+(Parse p) `seq` (Parse q) = Parse $ \tokens ->
+    case p tokens of
+        (ParseError l msg) -> ParseError l msg
+        (ParseResult list (Program tkns)) -> q tkns
 
 cerror :: String -> Parse a
 cerror msg = Parse $ \token -> ParseError 0 msg
 
--- combinators
+-- parsers
 
 identifier :: Parse Token
 identifier = do
@@ -299,8 +332,8 @@ identifier = do
                 LowerLetter l -> return $ curr `combine` next
                 UpperLetter l -> return $ curr `combine` next
                 Numb n -> return $ curr `combine` next
-                StringIdentifier s -> return $ curr `combine` next
-                _ -> return $ curr `combine` StringIdentifier ""
+                IdentifierTkn s -> return $ curr `combine` next
+                _ -> return $ curr `combine` IdentifierTkn ""
         _ -> cerror "Cannot parse identifier!"
 
 variable :: Parse Token
@@ -314,9 +347,9 @@ variable = do
                 LowerLetter l -> return $ curr `combine` next
                 UpperLetter l -> return $ curr `combine` next
                 Numb n -> return $ curr `combine` next
-                StringIdentifier s -> return $ curr `combine` next
-                -- StringVariable s -> return $ curr `combine` next -- cause of Issue 2
-                _ -> return $ curr `combine` StringVariable ""
+                IdentifierTkn s -> return $ curr `combine` next
+                -- VariableTkn s -> return $ curr `combine` next -- cause of Issue 2
+                _ -> return $ curr `combine` VariableTkn ""
         _ -> cerror "Cannot parse variable!"
 
 space :: Parse Token
@@ -325,6 +358,17 @@ space = do
     case token of
         Space -> do expect Space
         _ -> cerror "Cannot parse space!"
+
+remspace :: Parse Token
+remspace = do
+    token <- getToken -- here, getToken returns empty?
+    case token of
+        Space -> do
+            expect Space
+            mergeSpace
+        _ -> accept
+            -- otherwise just read the token
+            -- cerror "Cannot parse space!"
 
 ruleOp :: Parse Token
 ruleOp = do
@@ -357,17 +401,123 @@ specCharacter = do
 
 -- Second level parsing
 
--- parseFact :: Parse AST
--- parseFact = do
---     token <- getToken
---     case token of
---         StringIdentifier s -> do
---             name <- expect $ StringIdentifier s
---             expect Dot
---             return $ Fact Atom name
---         _ -> cerror"Cannot parse fact!"
+-- To be tested..
+-- mergeSpace :: Parse Token -- reads spaces and merges with the next token
+mergeSpace :: Parse Token
+mergeSpace = do
+    curr <- peek -- read -- accept -- getToken
+    case curr of
+        None -> return None -- end of list is reached
+        Space -> do
+            curr <- read
+            next <- mergeSpace
+            return $ curr `combine` next
+        _ -> do read -- reads next and returns it instead of the space
 
-        
+
+-- newest
+-- parseTerm
+readTerm :: Parse Token
+readTerm = do
+    curr <- getToken
+    case curr of
+        None -> return None -- end of list is reached -- should be deleted
+        IdentifierTkn name -> do
+            expect $ IdentifierTkn name
+            next <- peek
+            case next of
+                OpenBracket -> do -- the term is an atom; -- do not use . <$>
+                    expect OpenBracket
+                    args <- getArgs
+                    return $ Term $ JustAtom $ Atom name args
+                _ -> return $ Term $ JustConstant name -- the term is a constant
+        VariableTkn name -> do
+            accept -- do not forget to accept
+            return $ Term $ JustVariable name -- the term is a variable 
+        _ -> cerror "Cannot read term!"
+
+getArgs :: Parse [Token]
+getArgs = do
+    term <- readTerm
+    next <- peek
+    case next of
+        Comma -> do
+            expect Comma
+            terms <- getArgs
+            return $ term : terms
+        CloseBracket -> do
+            expect CloseBracket
+            return [term]
+        _ -> cerror "Cannot read term! Expected at least a closing bracket!"
+
+getAtoms :: Parse [Token]
+getAtoms = do
+    curr <- getToken
+    case curr of
+        AtomTkn atom -> do
+            expect $ AtomTkn atom
+            next <- peek
+            case next of
+                Dot -> do
+                    expect Dot
+                    return [AtomTkn atom]
+                Comma -> do
+                    expect Comma
+                    atoms <- getAtoms
+                    return $ AtomTkn atom : atoms
+                _ -> cerror "Error encountered while parsing atoms!"
+        _ -> cerror "Cannot get atoms!"
+
+-- unnecessary
+skip :: Parse Token
+skip = do accept
+
+-- ISSUE: does not recognize nested atoms
+parseAtom :: Parse Token
+parseAtom = do
+    token <- getToken
+    case token of
+        Term (JustAtom atom) -> do
+            accept
+            return $ AtomTkn atom
+        _ -> cerror "Cannot parse atom!"
+
+parseQuery :: Parse Token
+parseQuery = do
+    token <- getToken
+    case token of
+        QueryOperator -> do
+            expect QueryOperator
+            next <- getToken
+            case next of
+                (AtomTkn atom) -> do
+                    expect $ AtomTkn atom
+                    expect Dot
+                    return $ QueryTkn atom
+                _ -> cerror "Error encountered while parsing query!"
+        _ -> cerror "Cannot parse query!"
+            
+-- parse rules and facts (fact is a short notation for <atom> :- true.)
+parseRule :: Parse Token -- AST
+parseRule = do
+    token <- getToken
+    case token of
+        AtomTkn atom -> do
+            expect $ AtomTkn atom
+            next <- getToken
+            case next of
+                -- None -> return None
+                Dot -> do
+                    expect Dot
+                    return $ RuleTkn atom [Term $ JustConstant "true"] -- needs revision
+                RuleOperator -> do
+                    expect RuleOperator
+                    atoms <- getAtoms
+                    return $ RuleTkn atom atoms
+                _ -> cerror "Error encountered parsing rule!"
+        _ -> cerror "Cannot parse fact!"
+
+
 -- Tests
 tokenList :: [Token]
 tokenList = tokenize "identifier"
@@ -385,34 +535,92 @@ data Program a = Program [a] deriving (Show)
 -- ISSUE 2: reproduced: if a variable string consists of more than 2 characters then only the first character is saved
 --          expection: when the second letter is also uppercase this is not the case
 
-program :: Parse (Program Token)
-program = oneOf 0 "Cannot parse program" [do
+-- combines symbols into names and operators
+parserA :: Parse (Program Token)
+parserA = oneOf 0 "Cannot parse program" [do
                                             idnt <- identifier
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (idnt : rest),
                                           do
                                             var <- variable
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (var : rest),
-                                          do 
+                                          do
                                             spc <- space
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (spc : rest),
                                           do
                                             rop <- ruleOp
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (rop : rest),
                                           do
                                             qop <- queryOp
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (qop : rest),
                                           do
                                             spec <- specCharacter
-                                            (Program rest) <- program
+                                            (Program rest) <- parserA
                                             return $ Program (spec : rest),
+                                          do -- for dots
+                                            curr <- skip
+                                            (Program rest) <- parserC
+                                            return $ Program (curr : rest),
                                           return $ Program []
                                          ]
 
+-- removes unnecessary empty spaces
+parserB :: Parse (Program Token)
+parserB = oneOf 0 "Error in parserB"   [ do
+                                spc <- remspace
+                                (Program rest) <- parserB -- here
+                                return $ Program (spc : rest),
+                              return $ Program []
+                            ]
+
+-- combines tokens into terms
+parserC :: Parse (Program Token)
+parserC = oneOf 0 "Error in parserC"    [ do
+                                            trm <- readTerm -- parseAtom
+                                            (Program rest) <- parserC -- here
+                                            return $ Program (trm : rest),
+                                          do
+                                            curr <- skip
+                                            (Program rest) <- parserC
+                                            return $ Program (curr : rest), 
+                                          return $ Program []
+                                        ]
+
+-- parse terms into atoms
+parserD :: Parse (Program Token)
+parserD = oneOf 0 "Error in parserD"    [ do
+                                            atm <- parseAtom
+                                            (Program rest) <- parserD -- here
+                                            return $ Program (atm : rest),
+                                          do
+                                            curr <- skip
+                                            (Program rest) <- parserD
+                                            return $ Program (curr : rest), 
+                                          return $ Program []
+                                        ]
+
+-- parse tokens into a rule or a query
+parserE :: Parse (Program Token)
+parserE = oneOf 0 "Error in parserE"    [ do
+                                            rule <- parseRule
+                                            (Program rest) <- parserE -- here
+                                            return $ Program (rule : rest),
+                                          do
+                                            qry <- parseQuery
+                                            (Program rest) <- parserE -- here
+                                            return $ Program (qry : rest),
+                                          return $ Program []
+                                        ]
+
+-- sequencing parsers
+program :: Parse (Program Token)
+program = (((parserA `seq` parserB) `seq` parserC) `seq` parserD) `seq` parserE
+
+-- parse program
 parse :: String -> Parse (Program Token) -> ParseResult (Program Token)
 parse str (Parse run) = run $ tokenize str
 
