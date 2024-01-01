@@ -28,9 +28,11 @@ import Prelude hiding (read, seq)
 data Token
     --
     = Term Term
-    -- | FactTkn Atom -- not needed
+    --
+    | FactTkn Atom
     | QueryTkn Atom 
-    | RuleTkn Atom [Token] -- [Term]
+    | RuleTkn Atom [Atom] -- [Term]
+    --
     | AtomTkn Atom
     | IdentifierTkn String
     | VariableTkn String
@@ -116,8 +118,8 @@ clean (x : xs) = x : clean xs
 -- AST
 data AST
     = Rule Atom [Atom]
+    | Query Atom
     | Fact Atom
-    -- Query
     deriving (Show, Eq)
 
 data Term
@@ -127,7 +129,7 @@ data Term
     deriving (Eq)
 
 data Atom
-    = Atom String [Token]
+    = Atom String [Term] -- [Token]
     -- String [Term]
     -- Identifier Term [Term]
     deriving (Eq)
@@ -415,7 +417,6 @@ mergeSpace = do
         _ -> do read -- reads next and returns it instead of the space
 
 
--- newest
 -- parseTerm
 readTerm :: Parse Token
 readTerm = do
@@ -436,21 +437,25 @@ readTerm = do
             return $ Term $ JustVariable name -- the term is a variable 
         _ -> cerror "Cannot read term!"
 
-getArgs :: Parse [Token]
+getArgs :: Parse [Term]
 getArgs = do
-    term <- readTerm
-    next <- peek
-    case next of
-        Comma -> do
-            expect Comma
-            terms <- getArgs
-            return $ term : terms
-        CloseBracket -> do
-            expect CloseBracket
-            return [term]
-        _ -> cerror "Cannot read term! Expected at least a closing bracket!"
+    tkn <- readTerm
+    case tkn of
+        (Term term) -> do
+            next <- peek
+            case next of
+                Comma -> do
+                    expect Comma
+                    terms <- getArgs
+                    return $ term : terms
+                CloseBracket -> do
+                    expect CloseBracket
+                    return [term]
+                _ -> cerror "Cannot read term! Expected at least a closing bracket!"
+        _ -> cerror "Expected term but encountered something else!"
 
-getAtoms :: Parse [Token]
+-- here
+getAtoms :: Parse [Atom]
 getAtoms = do
     curr <- getToken
     case curr of
@@ -460,11 +465,11 @@ getAtoms = do
             case next of
                 Dot -> do
                     expect Dot
-                    return [AtomTkn atom]
+                    return [atom]
                 Comma -> do
                     expect Comma
                     atoms <- getAtoms
-                    return $ AtomTkn atom : atoms
+                    return $ atom : atoms
                 _ -> cerror "Error encountered while parsing atoms!"
         _ -> cerror "Cannot get atoms!"
 
@@ -472,7 +477,7 @@ getAtoms = do
 skip :: Parse Token
 skip = do accept
 
--- ISSUE: does not recognize nested atoms
+-- ISSUE: does not recognize nested atoms, but that is not necessary for the functionality of our parser
 parseAtom :: Parse Token
 parseAtom = do
     token <- getToken
@@ -509,7 +514,7 @@ parseRule = do
                 -- None -> return None
                 Dot -> do
                     expect Dot
-                    return $ RuleTkn atom [Term $ JustConstant "true"] -- needs revision
+                    return $ FactTkn atom
                 RuleOperator -> do
                     expect RuleOperator
                     atoms <- getAtoms
@@ -617,72 +622,25 @@ parserE = oneOf 0 "Error in parserE"    [ do
                                         ]
 
 -- sequencing parsers
-program :: Parse (Program Token)
-program = (((parserA `seq` parserB) `seq` parserC) `seq` parserD) `seq` parserE
+ir :: Parse (Program Token)
+ir = (((parserA `seq` parserB) `seq` parserC)  `seq` parserD) `seq` parserE
 
 -- parse program
 parse :: String -> Parse (Program Token) -> ParseResult (Program Token)
 parse str (Parse run) = run $ tokenize str
 
---parseExpr :: [Token] -> Parse Token 
---parseExpr x = identifier x
 
--- program :: [AST]
-
--- query :: Program, Query -> Output
--- query :: [AST] -> [AST] -> String 
-
-
---atom :: Parse Atom
---atom = do
---    t <- getToken
---    case t of
---        (Identifier name) -> do
---            expect (Identifier name)
---            expect OpenBracket
---            expr <- term
---            --
---            expect CloseBracket
---            return $ Atom expr
---        _ -> cerror "Cannot parse atom!"
-
---term :: Parse Term
---term = do
---    t <- getToken
---    case t of
---        (StringConstant s) -> do
---            expect $ StringConstant s
---            return $ StringConstant s
---        (Variable v) -> do
---            expect $ Variable v
---            return $ Variable v
---        (Atom i ts) -> do
---            expect $ Atom i ts
---            --
---            return $ Atom i ts
---        _ -> cerror "Cannot parse term!"
-
---fact :: Parse Fact
---fact = do
---    t <- getToken
---    case t of
---        (Atom i ts) -> do
---            expect $ Atom i ts
---            expect Dot
---            return $ Atom i ts
---        _ -> cerror "Cannot parse fact!"
-
---rule :: Parse Rule
---rule = do
---    t <- getToken
---    case t of
---        (Atom i ts) -> do
---            a <- expect $ Atom i ts
---            expect Colon
---            expect Dash
---            b <- expect $ Atom _ _
---            return Rule a [b]
---        _ -> error "Cannot parse rule!"
-
-
-
+-- ast :: ParseResult (Program Token) -> Maybe (Program AST)
+-- ast res = 
+--     case res of
+--         (ParseResult msg (Program [token])) -> 
+--             Program $ [toAST token]
+--             where 
+--                 toAST :: Token -> Maybe AST
+--                 toAST tkn = -- reads the first (and only) token
+--                     case tkn of
+--                         (RuleTkn atom terms) -> Just $ Rule atom terms
+--                         (QueryTkn atom) -> Just $ Query atom
+--                         -- (Fact atom) -> Just $ Fact atom
+--                         _ -> Nothing -- error
+--         _ -> Nothing -- error
