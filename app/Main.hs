@@ -27,7 +27,6 @@ import Data.Char (intToDigit)
 import Prelude hiding (read, seq)
 
 
-
 -- dummy 
 main :: IO ()
 main =
@@ -35,22 +34,9 @@ main =
     word <- getLine
     print word
 
-
-----------------------------------------------------------------
--- MODULE TOKENIZE ---------------------------------------------
-
 ----------------------------------------------------------------
 -- MODULE MAIN -------------------------------------------------
 
-
--- comb is a combinator for sequencing operations that return Maybe
---comb :: Maybe a -> (a -> Maybe b) -> Maybe b
---comb Nothing  _ = Nothing
---comb (Just x) f = f x
-
-
--- TO-DO: merge combine & combine
--- maybe deprecated
 -- combine is an operator that merges two tokens
 combine :: Token -> Token -> Token
 combine (IdentifierTkn str) (LowerLetter ltr) = IdentifierTkn $ str ++ [ltr]
@@ -80,8 +66,7 @@ combine Space smt = smt
 -- more patterns
 combine _ _ = None
 
-
--- . . . code . . . 
+--
 
 type LineNumber = Int
 data ParseResult a
@@ -97,7 +82,6 @@ instance Show (a -> b) where
 data Parse a = Parse ([Token] -> ParseResult a) deriving (Show)
 
 -- Parse Monad
-
 instance Functor Parse where
         fmap :: (a -> b) -> Parse a -> Parse b
         fmap f action = do
@@ -167,8 +151,6 @@ peek = Parse
             [] -> ParseResult [] None
             t:ts -> ParseResult (t:ts) t
 
--- except -- similar to expect but removes the expected from the list
-
 -- used for reading several characters at once
 -- a string contains only lowercase and upper letters and digits
 readString :: Parse Token
@@ -214,7 +196,7 @@ seq :: Parse (Program Token) -> Parse (Program Token) -> Parse (Program Token)
 cerror :: String -> Parse a
 cerror msg = Parse $ \token -> ParseError 0 msg
 
--- parsers
+-- Parsers
 
 identifier :: Parse Token
 identifier = do
@@ -224,7 +206,7 @@ identifier = do
             curr <- expect $ LowerLetter l
             next <- readString
             case next of
-                -- the next 3 lines are for the corner case when the string if 2-lettered
+                -- the next 3 lines are for the corner case when the string consists of 2 letters
                 LowerLetter l -> return $ curr `combine` next
                 UpperLetter l -> return $ curr `combine` next
                 Numb n -> return $ curr `combine` next
@@ -295,9 +277,8 @@ specCharacter = do
         Comma -> expect Comma
         _ -> cerror "Cannot parse special symbol!"
 
--- Second level parsing
+-- 
 
--- To be tested..
 -- mergeSpace :: Parse Token -- reads spaces and merges with the next token
 mergeSpace :: Parse Token
 mergeSpace = do
@@ -396,7 +377,7 @@ parseQuery = do
                 _ -> cerror "Error encountered while parsing query!"
         _ -> cerror "Cannot parse query!"
             
--- parse rules and facts (fact is a short notation for <atom> :- true.)
+-- parse rules and facts (fact is a short notation for true :- <atom>.)
 parseRule :: Parse Token -- AST
 parseRule = do
     token <- getToken
@@ -416,10 +397,6 @@ parseRule = do
                 _ -> cerror "Error encountered parsing rule!"
         _ -> cerror "Cannot parse fact!"
 
-
--- Tests
-tokenList :: [Token]
-tokenList = tokenize "identifier"
 
 --
 removespace :: [Token] -> [Token]
