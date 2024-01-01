@@ -505,15 +505,15 @@ ast prs =
     case prs of
         (ParseResult stack (Program [token])) ->
             case toAST token of
-                (Just res) -> Just $ Program $ [res]
+                (Just res) -> Just $ Program res
                 Nothing -> Nothing
             where
-                toAST :: Token -> Maybe AST
+                toAST :: Token -> Maybe [AST]
                 toAST tkn = -- reads the first (and only) token
                     case tkn of
-                        (RuleTkn atom atoms) -> Just $ Rule atom atoms
-                        (FactTkn atom) -> Just $ Fact atom
-                        (QueryTkn atom) -> Just $ Query atom
+                        (RuleTkn atom atoms) -> Just [Rule atom rs | rs <- atoms]
+                        (FactTkn atom) -> Just [Fact atom]
+                        (QueryTkn atom) -> Just [Query atom]
                         _ -> Nothing -- error; needs revision
         _ -> Nothing -- error
 

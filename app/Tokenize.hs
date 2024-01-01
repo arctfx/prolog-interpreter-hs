@@ -44,8 +44,8 @@ data Token
 
 -- AST
 data AST
-    = Rule Atom [Atom]
-    | Query Atom
+    = Rule Atom Atom -- [Atom]
+    | Query Atom -- Query
     | Fact Atom
     deriving (Show, Eq)
 
