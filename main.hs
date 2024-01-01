@@ -629,9 +629,11 @@ ir = (((parserA `seq` parserB) `seq` parserC)  `seq` parserD) `seq` parserE
 parse :: String -> Parse (Program Token) -> ParseResult (Program Token)
 parse str (Parse run) = run $ tokenize str
 
+-- finish 
 compile :: String -> Maybe (Program AST)
-compile str = ast (parse str ir) 
+compile str = ast (parse str ir)
 
+-- generates AST from tokens
 ast :: ParseResult (Program Token) -> Maybe (Program AST)
 ast prs =
     case prs of
@@ -648,3 +650,6 @@ ast prs =
                         (QueryTkn atom) -> Just $ Query atom
                         _ -> Nothing -- error; needs revision
         _ -> Nothing -- error
+
+
+--------------------------------------------------------------------------

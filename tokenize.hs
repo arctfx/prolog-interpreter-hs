@@ -1,4 +1,4 @@
-module Tokenize where
+-- module Tokenize where
 import Data.Char (isAsciiUpper, isAsciiLower, isSpace)
 
 data Token
