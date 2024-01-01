@@ -629,18 +629,22 @@ ir = (((parserA `seq` parserB) `seq` parserC)  `seq` parserD) `seq` parserE
 parse :: String -> Parse (Program Token) -> ParseResult (Program Token)
 parse str (Parse run) = run $ tokenize str
 
+compile :: String -> Maybe (Program AST)
+compile str = ast (parse str ir) 
 
--- ast :: ParseResult (Program Token) -> Maybe (Program AST)
--- ast res = 
---     case res of
---         (ParseResult msg (Program [token])) -> 
---             Program $ [toAST token]
---             where 
---                 toAST :: Token -> Maybe AST
---                 toAST tkn = -- reads the first (and only) token
---                     case tkn of
---                         (RuleTkn atom terms) -> Just $ Rule atom terms
---                         (QueryTkn atom) -> Just $ Query atom
---                         -- (Fact atom) -> Just $ Fact atom
---                         _ -> Nothing -- error
---         _ -> Nothing -- error
+ast :: ParseResult (Program Token) -> Maybe (Program AST)
+ast prs =
+    case prs of
+        (ParseResult stack (Program [token])) ->
+            case toAST token of
+                (Just res) -> Just $ Program $ [res]
+                Nothing -> Nothing
+            where
+                toAST :: Token -> Maybe AST
+                toAST tkn = -- reads the first (and only) token
+                    case tkn of
+                        (RuleTkn atom atoms) -> Just $ Rule atom atoms
+                        (FactTkn atom) -> Just $ Fact atom
+                        (QueryTkn atom) -> Just $ Query atom
+                        _ -> Nothing -- error; needs revision
+        _ -> Nothing -- error
