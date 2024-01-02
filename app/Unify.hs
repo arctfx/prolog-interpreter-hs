@@ -42,21 +42,16 @@ type Database = [AST]
 
 -- G{x ↦ t}
 -- substitute
-substitute :: Pvar -> Pterm -> Substitution -> Substitution
-substitute [] _ _ = []
-substitute ((Equation x y) : xs) var term = 
-    case x of
-        (Pterm (Term))  
 
 -- HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-resolve :: Pquery -> Database -> Maybe Substitution
-resolve qry [] = Nothing
-resolve qry (clause : clauses) = 
-    case clause of
-        (Rule ls rs) -> 
-            case unify qry clause of
-                (MGU subs) -> Just subs
-                _ -> resolve qry clauses 
+-- resolve :: Pquery -> Database -> Maybe Substitution
+-- resolve qry [] = Nothing
+-- resolve qry (clause : clauses) = 
+--     case clause of
+--         (Rule ls rs) -> 
+--             case unify qry clause of
+--                 (MGU subs) -> Just subs
+--                 _ -> resolve qry clauses 
 
 type Unifier = Substitution
 data Resolvent = Resolvent Pterm deriving (Show)
@@ -106,85 +101,79 @@ arity _ = 0
 
 occurs :: Pvar -> Pterm -> Bool
 occurs var1 (JustPvar var2) = if var1 == var2 then True else False
-occurs var (Pterm name args) = foo args -- could be done with accumulate and map or even simpler
+occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
     where 
-        foo [] = False
-        foo (t : ts) = if occurs var t then True else foo var ts
-occurs _ _ = False 
+        foo var [] = False
+        foo var (t : ts) = if occurs var t then True else foo var ts
 
 compatible :: Pterm -> Pterm -> Bool
 compatible (Pterm lname largs) (Pterm rname rargs) = if lname == rname && length largs == length rargs
     then True else False
 
 -- plunify.h
-data PLUnifierStruct = PLUnifierStruct [PLEquation] deriving (Show, Eq)
+type PLUnifierStruct = [PLEquation]
 data PLEquation = PLEquation Pvar Pterm deriving (Show, Eq)
 
 plUnify :: Pterm -> Pterm -> Maybe PLUnifierStruct
 plUnify t1 t2 =
-    mgu = PLUnifierStruct []
-    stack = [PLUnifierFrame t1 t2] 
-    loop stack where
-        loop :: PLUnifierStackFrameStruct -> () 
-        loop ((PLUnifierFrame x y) : xs) =
-            case (x, y) of
-                (JustPvar v, Pterm n ts) ->
-                    if not (occurs v t) then
-                        unify t v 
-                        loop xs
-                    else Nothing
-                    where t = Pterm n ts
-                (Pterm n ts, JustPvar v) ->
-                    if not (occurs v t) then
-                        unify t v 
-                        loop xs
-                    else Nothing
-                    where t = Pterm n ts
-                (Pterm n1 ts1, Pterm n2 ts2) ->
-                    if compatible x y then
-                        stack ++ [Equation (largs!!n) (rargs!!n) | n <- [0..(ariry x)-1]]
-                _ -> if x == y then loop xs 
-                else Nothing
-            where
-                unify a b = 
-                    u = PLUnifierStruct [PLEquation a b]
-                    PLUnifierApplyToUnifier mgu u
-			        PLUnifierApplyToStack stack u
-                    mgu ++ u
+    -- loop stack mgu
+    loop [PLUnifierFrame t1 t2] []
+    where
+        loop :: PLUnifierStackFrameStruct -> PLUnifierStruct -> Maybe PLUnifierStruct
+        loop [] mgu = Just mgu
+        loop ((PLUnifierFrame x y) : frames) currMgu =
+            let currStack = ((PLUnifierFrame x y) : frames) in
+                case (x, y) of
+                    (JustPvar v, Pterm n ts) ->
+                        if not (occurs v (Pterm n ts)) then
+                            let
+                                -- u = [PLEquation v y] or u = { X = Y }
+                                stack = plUnifierApplyToStack (PLEquation v y) currStack
+                                mgu = currMgu ++ plUnifierApplyToUnifier (PLEquation v y) currMgu
+                            in
+                            loop stack mgu
+                        else Nothing
+                    (Pterm n ts, JustPvar v) ->
+                        if not (occurs v (Pterm n ts)) then
+                            let
+                                stack = plUnifierApplyToStack (PLEquation v x) currStack
+                                mgu = mgu ++ plUnifierApplyToUnifier (PLEquation v x) currMgu
+                            in
+                            loop stack mgu
+                        else Nothing -- ?
+                    (Pterm lname largs, Pterm rname rargs) ->
+                        if compatible x y then
+                            let -- recalculate currStack
+                                stack = currStack ++ [PLUnifierFrame (largs!!n) (rargs!!n) | n <- [0..(arity x)-1]]
+                            in 
+                            loop stack currMgu
+                        else Nothing
+                    _ -> if x == y then loop currStack currMgu else Nothing
 -- ....
 
 type PLUnifierStackFrameStruct = [PLUnifierFrame] -- frame
 data PLUnifierFrame = PLUnifierFrame Pterm Pterm deriving (Show, Eq) -- term1, term2
 
-plUnifierApplyToTerms :: PLEquation -> [Pterm] -> [Pterm]
-plUnifierApplyToTerms _ [] = []
-plUnifierApplyToTerms (PLEquation var term2) (t : ts) =
-    res = []
+plUnifierApplyToTerm :: PLEquation -> Pterm -> Pterm
+plUnifierApplyToTerm (PLEquation var term) t =
     case t of
-        (JustPvar v) -> if v == var then -- apply, swap
+        (JustPvar v) -> if v == var then term else t -- apply, swap
         (Pterm name args) ->
-            plUnifierApplyToTerms (PLEquation var term) args --
-            plUnifierApplyToTerms (PLEquation var term) ts --
-    -- ...
--- ....
+            Pterm name [plUnifierApplyToTerm (PLEquation var term) arg | arg <- args]
+-- ...
+
 
 plUnifierApplyToStack :: PLEquation -> PLUnifierStackFrameStruct -> PLUnifierStackFrameStruct
 plUnifierApplyToStack _ [] = []
 plUnifierApplyToStack u [(PLUnifierFrame term1 term2)] =
-    plUnifierApplyToTerms u [term1]
-    plUnifierApplyToTerms u [term2]
-    -- ... return stack
+    [ PLUnifierFrame (plUnifierApplyToTerm u term1) (plUnifierApplyToTerm u term2) ]
 plUnifierApplyToStack u ((PLUnifierFrame term1 term2) : ts) =
-    plUnifierApplyToTerms u [term1]
-    plUnifierApplyToTerms u [term2]
-    plUnifierApplyToStack u ts
+    PLUnifierFrame (plUnifierApplyToTerm u term1) (plUnifierApplyToTerm u term2) : plUnifierApplyToStack u ts
 
--- ....
 
-plUnifierApplyToUnifiers :: PLEquation -> [PLUnifierStruct] -> [PLUnifierStruct]
-plUnifierApplyToUnifiers _ [] = []
--- ...
-plUnifierApplyToUnifiers u ((PLEquation var term) : xs) = 
-    plUnifierApplyToTerms u term
-    plUnifierApplyToUnifiers u xs
+plUnifierApplyToUnifier :: PLEquation -> PLUnifierStruct -> PLUnifierStruct
+plUnifierApplyToUnifier _ [] = []
+plUnifierApplyToUnifier u [PLEquation var term] = [ PLEquation var (plUnifierApplyToTerm u term) ]
+plUnifierApplyToUnifier u ((PLEquation var term) : xs) = 
+    PLEquation var (plUnifierApplyToTerm u term) : plUnifierApplyToUnifier u xs
 -- ....
