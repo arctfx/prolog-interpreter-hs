@@ -1,4 +1,6 @@
-module Tokenize 
+ {-# LANGUAGE InstanceSigs #-}
+ 
+module Tokenize
 (Token( Term, FactTkn, QueryTkn, RuleTkn,
         AtomTkn, IdentifierTkn, VariableTkn, QueryOperator, RuleOperator, Dot, OpenBracket, CloseBracket, Comma, 
         Numb, LowerLetter, UpperLetter, Space, Colon, Dash, Questionmark, None, Undefined ),

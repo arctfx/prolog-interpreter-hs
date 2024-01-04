@@ -1,3 +1,5 @@
+ {-# LANGUAGE InstanceSigs #-}
+ 
 -- turn warnings into errors
 {-# OPTIONS_GHC -Werror #-}
 -- cover all cases!
@@ -20,11 +22,11 @@
 
 module Main where
 
-
 --import Data.Char (intToDigit)
 import Tokenize
 import Data.Char (intToDigit)
 import Prelude hiding (read, seq)
+import Unify
 
 
 -- dummy 

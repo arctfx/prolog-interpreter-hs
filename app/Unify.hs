@@ -6,56 +6,111 @@ data Variable
     = Variable String
     deriving (Show, Eq)
 
-data Pquery = Pquery Atom deriving (Show, Eq) 
+data Pquery = Pquery String [Pterm] deriving (Show, Eq)
 data Pterm
     = Pterm String [Pterm] -- Pterm Term 
     | JustPvar Pvar deriving (Show, Eq)
     -- consts are functions with zero arguments
-data Pvar = Pvar Variable deriving (Show, Eq)
+data Pvar = Pvar String deriving (Show, Eq)
 
 -- G - substitution
 -- G :: [Equation]
 -- G = { x1 ≐ u1, ..., xm ≐ um }
--- Pvar = Pterm
-data Equation = Equation Pterm Pterm deriving (Show, Eq)
-data MGU = MGU Substitution
-type Substitution = [Equation] -- Unifier
-type Database = [AST]
 
--- G U {t ≐ t} => G
--- delete
+-- Test 1:
+test1_term = Pterm "a" []
+test1_resolvent = Pterm "b" []
+test1 = plUnify test1_term test1_resolvent
+-- Output: Nothing (cannot be resolved, false)
+-- Test 2:
+test_term = Pterm "exists" [JustPvar (Pvar "F")]
+test_resolvent = Pterm "exists" [Pterm "a" []]
+test2 = plUnify test_term test_resolvent
+-- Output: Just []
+-- Note: should be Just [F = a]
 
--- G U { f(s0, ..., sk) ≐ f(t0, ..., tk) } => G U {s0 ≐ t0, ..., sk ≐ tk}
--- decompose
-
--- -- G U { f(s0, ..., sk) ≐ g(t0, ..., tm) } => ⊥ if f ≠ g or k ≠ m
--- conflict
-
--- G U { f(s0, ..., sk) ≐ x } => G U { x ≐ f(s0, ..., sk) }
--- swap
-
--- G U {x ≐ t} => G{x ↦ t} U {x ≐ t} -- if x not in args of t 
--- eliminate
-
--- if x not in args of f 
--- check
-
--- G{x ↦ t}
--- substitute
-
--- HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
--- resolve :: Pquery -> Database -> Maybe Substitution
+-------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------
+-- NEW ------------------------------------------------------------------------------------------------------------------------------------
+-- type Stack = [Frame]
+-- data Frame = Frame [Pterm] Pterm Pterm -- resolvents, goal term, compare term / position in db / subDB
+-- 
+-- plResolve :: Pquery -> Database -> PLUnifierStruct -> Maybe PLUnifierStruct
+-- plResolve qry (x : xs) mgu = plInterpret [Frame x qry qry] (x : xs) mgu
+-- 
+-- data Result = Result Stack Frame | Empty -- argument wrapper, just for the next function
+-- 
+-- plInterpret :: Stack -> Database -> PLUnifierStruct -> Maybe PLUnifierStruct
+-- plInterpret [] db mgu = Nothing -- CHECKED
+-- plInterpret (Frame resolvents goal compare : frames) db mgu = 
+--     let
+--         sStack = (Frame resolvents goal compare : frames)
+--         sFrame = Frame resolvents goal compare
+--     in
+--     loop1 resolvents (Just mgu) sFrame
+--     where
+--         loop1 :: [Pterm] -> Result -> Frame -> Database -> Maybe PLUnifierStruct
+--         loop1 _ Empty _ _ = Nothing
+--         loop1 [] res _ _ = Nothing -- should be something 
+--         loop1 (t : ts) (Just mgu) sFrame db = 
+--             -- $Goal is actually a list that contains also the resolvent of the list
+--             let
+--                 sGoal = [t]
+--             in
+--             -- remove the $Goal from the Frame resolvents
+--             loop1 ts (loop2 sFrame db) -- ???
+--             --If $Frame position is the end of the database $P AND the unification status is not success
+--             --  Break the innermost while loop
+--             where
+--                 -- position in DB / subDB, unification, whole DB - fictive
+--                 loop2 :: Database -> Database -> Result -- Maybe PLUnifierStruct
+--                 loop2 [] db = Empty
+--                 -- loop2 subDB/the position is the head of a suffix of the database
+--                 loop2 (x : xs) db =
+--                     let sCompare = sFrame in
+--                     -- rename vars in sCompare
+--                     case plUnify sGoal sCompare of
+--                         Just mgu -> 
+--                             -- If $Frame database position is not the end of the database
+--                             let
+--                                 newStack = Frame sGoal goal compare : sStack
+--                                 newResolvents = [plUnifierApplyToTerm r | r <- resolvents] ++ [plUnifierApplyToTerm compare]
+--                                 newGoal = plUnifierApplyToTerm goal
+--                                 newCompare = head db
+--                             in
+--                             Result newStack $ Frame newResolvents newGoal newCompare
+--                             -- break loop2
+--                         Nothing -> loop2 xs db -- otherwise continue
+-- 
+--         
+-- 
+-- 
+-- -- HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+-- resolve :: Pquery -> Database -> Maybe PLUnifierStruct
 -- resolve qry [] = Nothing
 -- resolve qry (clause : clauses) = 
 --     case clause of
 --         (Rule ls rs) -> 
---             case unify qry clause of
---                 (MGU subs) -> Just subs
---                 _ -> resolve qry clauses 
+--             case unify qry ls of
+--                 Just mgu -> Just mgu
+--                     -- resolve qry clauses -- ++ mgu 
+--                 Nothing -> Nothing
+--         (Fact atom) ->
+--             case unify qry atom of
+--                 Just mgu -> Just mgu
+--                     -- resolve qry clauses -- ++ mgu 
+--                 Nothing -> Nothing
+--         where
+--             unify (Pquery lname largs) (Atom rname rargs) = plUnify (Pterm lname largs) (Pterm rname (termsToPterms rargs))
+        
 
-type Unifier = Substitution
-data Resolvent = Resolvent Pterm deriving (Show)
-type Stackframe = [Resolvent]
+termsToPterms :: [Term] -> [Pterm]
+termsToPterms [] = []
+termsToPterms (t : ts) =
+    case t of
+        JustAtom (Atom name args) -> Pterm name (termsToPterms args) : termsToPterms ts
+        JustConstant name -> Pterm name [] : termsToPterms ts
+        JustVariable name -> JustPvar (Pvar name) : termsToPterms ts
 
 -- Initialise the MGU to an empty unifier
 -- Push T1 = T2 to the stack
@@ -142,13 +197,15 @@ plUnify t1 t2 =
                             loop stack mgu
                         else Nothing -- ?
                     (Pterm lname largs, Pterm rname rargs) ->
+                        -- if x=y is not checked here then we have infinite recursion
+                        if x == y then loop frames currMgu else 
                         if compatible x y then
                             let -- recalculate currStack
-                                stack = currStack ++ [PLUnifierFrame (largs!!n) (rargs!!n) | n <- [0..(arity x)-1]]
+                                stack = [PLUnifierFrame (largs!!n) (rargs!!n) | n <- [0..(arity x)-1]] ++ currStack 
                             in 
                             loop stack currMgu
                         else Nothing
-                    _ -> if x == y then loop currStack currMgu else Nothing
+                    _ -> if x == y then loop frames currMgu else Nothing -- loop currStack currMgu
 -- ....
 
 type PLUnifierStackFrameStruct = [PLUnifierFrame] -- frame
@@ -177,3 +234,28 @@ plUnifierApplyToUnifier u [PLEquation var term] = [ PLEquation var (plUnifierApp
 plUnifierApplyToUnifier u ((PLEquation var term) : xs) = 
     PLEquation var (plUnifierApplyToTerm u term) : plUnifierApplyToUnifier u xs
 -- ....
+
+
+
+
+
+-- G U {t ≐ t} => G
+-- delete
+
+-- G U { f(s0, ..., sk) ≐ f(t0, ..., tk) } => G U {s0 ≐ t0, ..., sk ≐ tk}
+-- decompose
+
+-- -- G U { f(s0, ..., sk) ≐ g(t0, ..., tm) } => ⊥ if f ≠ g or k ≠ m
+-- conflict
+
+-- G U { f(s0, ..., sk) ≐ x } => G U { x ≐ f(s0, ..., sk) }
+-- swap
+
+-- G U {x ≐ t} => G{x ↦ t} U {x ≐ t} -- if x not in args of t 
+-- eliminate
+
+-- if x not in args of f 
+-- check
+
+-- G{x ↦ t}
+-- substitute
