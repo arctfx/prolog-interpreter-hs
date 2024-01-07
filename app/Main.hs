@@ -26,7 +26,9 @@ module Main where
 import Tokenize
 import Data.Char (intToDigit)
 import Prelude hiding (read, seq)
+import System.IO
 import Unify
+import Interpret
 
 
 -- dummy 
@@ -490,6 +492,7 @@ parserE = oneOf 0 "Error in parserE"    [ do
                                         ]
 
 -- sequencing parsers
+-- parser
 ir :: Parse (Program Token)
 ir = (((parserA `seq` parserB) `seq` parserC)  `seq` parserD) `seq` parserE
 
@@ -513,23 +516,43 @@ ast prs =
                 toAST :: Token -> Maybe [AST]
                 toAST tkn = -- reads the first (and only) token
                     case tkn of
-                        (RuleTkn atom atoms) -> Just [Rule atom rs | rs <- atoms]
+                        (RuleTkn atom atoms) -> Just [Rule atom atoms] -- [Rule atom rs | rs <- atoms]
                         (FactTkn atom) -> Just [Fact atom]
                         (QueryTkn atom) -> Just [Query atom]
                         _ -> Nothing -- error; needs revision
         _ -> Nothing -- error
 
+-- compiles a fine to Program AST
+compileFile :: String -> IO (Maybe (Program AST))
+compileFile fileName = do
+        contents <- readFile fileName
+        let 
+            cmpl :: [String] -> [AST]
+            cmpl [] = []
+            cmpl (l : ls) = 
+                case compile l of
+                    Just (Program x) -> x ++ cmpl ls
+                    Nothing -> []
+            ast = cmpl (filter (not . null) (lines contents))
+            in return $ Just $ Program ast
+
+interpretFile :: String -> IO Database
+interpretFile fileName = do
+        contents <- readFile fileName
+        let 
+            cmpl :: [String] -> [AST]
+            cmpl [] = []
+            cmpl (l : ls) = 
+                case compile l of
+                    Just (Program x) -> x ++ cmpl ls
+                    Nothing -> []
+            ast = cmpl (filter (not . null) (lines contents))
+            in return $ astToIR ast
+
 
 -- To-dos:
--- -> Parser works only with one line, to-do: compile a whole text file into Program AST
+-- -> Note: Compiler stops after lines that cannot be parsed,
+--      the already parsed lines remain in the program and the compiling is successful
 -- -> Revise error handling
 -- -> Revise type architecture
 -- -> Clean up code, remove code repetition
-----------------------------------------------------------------------------------------
--- Tests
--- compile "a(b) :- c(d)."
--- compile "c(d, c(a, b))."
--- compile "?- a(b)."
--- compile "a(b(c, d)) :- X."  -- грешка - лявата страна на правилото не е атом
--- compile "a(X, b) :- c(d), a(c(d), b)."
--- compile "a(b, c)" -- грешка - редът не завършва с точка
