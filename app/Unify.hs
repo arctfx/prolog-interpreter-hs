@@ -13,9 +13,9 @@ data Pterm
     = Pterm String [Pterm] -- Pterm Term 
     | JustPvar Pvar deriving (Show, Eq)
     -- consts are functions with zero arguments
-data Pvar where
-  Pvar :: String -> Pvar
-  deriving (Show, Eq)
+data Pvar = Pvar String deriving (Show, Eq)
+data Name = Name String Int -- name, id -- only for Pvars
+  deriving (Show, Eq) 
 
 -- G - substitution
 -- G :: [Equation]
@@ -137,11 +137,13 @@ arity (Pterm name args) = length args
 arity _ = 0
 
 occurs :: Pvar -> Pterm -> Bool
-occurs var1 (JustPvar var2) = var1 == var2
-occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
-    where
-        foo var [] = False
-        foo var (t : ts) = occurs var t || foo var ts
+occurs _ _ = False
+-- occurs :: Pvar -> Pterm -> Bool
+-- occurs var1 (JustPvar var2) = var1 == var2
+-- occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
+--     where
+--         foo var [] = False
+--         foo var (t : ts) = occurs var t || foo var ts
 
 compatible :: Pterm -> Pterm -> Bool
 compatible (Pterm lname largs) (Pterm rname rargs) = lname == rname && length largs == length rargs

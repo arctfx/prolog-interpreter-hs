@@ -13,3 +13,6 @@ father(tom, ann) :- newborn(ann).
 grandfather(x,z) :- father(x,y), parent(y,z).
 father(nehru, indira).
 mother(indira, rajiv).
+
+natNumber(zero).
+natNumber(succ(X)) :- natNumber(X).

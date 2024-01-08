@@ -30,7 +30,7 @@ type Unifier = PLUnifierStruct
 data Pclause = Prule Pterm [Pterm] | Pfact Pterm deriving (Show, Eq) -- intermediate representation
 type Database = [Pclause] -- [Pterm]
 -- data Tree = Tree Node [Tree]
-data Node = Empty | Node [Pterm] [Maybe Unifier] -- (Maybe Unifier)
+data Node = Empty | Node [Pterm] [Maybe Unifier] -- maybe Empty deprecated?
     deriving (Show, Eq)
 
 astToIR :: [AST] -> Database
@@ -47,8 +47,8 @@ astToIR (x : xs) =
         termToPterm t =
             case t of
                 JustAtom (Atom name args) -> Pterm name [termToPterm t | t <- args]
-                JustConstant name -> Pterm name [] -- constants are functions with zero arguments
-                JustVariable name -> JustPvar (Pvar name) 
+                JustConstant name -> Pterm name [] -- constants are functions(terms) with zero arguments
+                JustVariable name -> JustPvar (Pvar name)
 
 
 
@@ -58,10 +58,16 @@ astToIR (x : xs) =
 --      let u = plUnify query term in
 --      case u of
 --          Nothing -> continue
---          Just _ -> return Node with u and newQuery = apply u to query 
-genn :: Node -> Database -> [Node]
-genn (Node (term:xs) mgu) db = [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solve term db]
+--          Just _ -> return Node with u and newQuery = apply u to query
+-- goal reduction
+genn :: Node -> Database -> Maybe [Node]
+genn (Node (term:xs) mgu) db =
+    let solved = solve term db in
+    case solved of
+        [] -> Nothing
+        _ -> Just [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
     where
+        -- rename
         -- apply = plUnifierApplyToTerm??
         apply :: Unifier -> Pterm -> Pterm
         apply [] term = term
@@ -83,48 +89,51 @@ genn (Node (term:xs) mgu) db = [Node [apply unifier t | t <- terms ++ xs] (Just 
                         Just [] -> ([], []) : solve term xs
                         Just mgu -> ([t], mgu) : solve term xs
 
-genn _ _ = []
+genn _ _ = Nothing
 
 
-
--- initial tree: Root -> G
--- tree = Tree Empty [Tree $ Node g [] $ []]
-
--- children :: Tree -> [Node]
--- children (Tree _ []) = []
--- children (Tree _ [Tree node _]) = [node]
--- children (Tree _ (Tree node _ : sts)) = node : [nd | Tree nd _ <- sts]
-
--- loop :: [a] -> (a -> b) -> b
--- loop [] f = []
--- loop (x : xs) f = f x : loop xs f
 
 cat :: ([a], [b]) -> ([a], [b]) -> ([a], [b])
 cat (x, y) (xs, ys) = (x ++ xs, y ++ ys)
 
+-- isTautology :: Pterm -> Bool
 
+
+-- returns:
+-- [] = failed, or tautology, or any solution
+-- [unifier0,..] = success
+-- should return:
+-- Nothing -> "no"
+-- isTautology == true -> "yes"
+-- [] -> "any"
+-- non-empty unifier -> {...}
 resolve :: Node -> Database -> [Unifier]
 resolve node db =
-    snd $ loop $ genn node db
+    maybe [] loop (genn node db)
+    -- here, maybe missing corner case here - if node.term is tautology?
     where
-        loop :: [Node] -> ([Node], [Unifier])
-        loop [] = ([], [])
+        loop :: [Node] -> [Unifier]
+        loop [] = []
         loop (node : nodes) =
-            let
-                (gens, sols) = loop2 $ genn node db
-            in
-                (gens, sols) `cat` (loop nodes)
+            -- here, maybe missing corner case here, or maybe not?
+            case genn node db of
+                Nothing -> loop nodes
+                Just gen ->
+                    let (gens, sols) = loop1 gen db in
+                    sols ++ loop (nodes ++ gens)
 
 -- LOOP1
 -- takes nodes, return genn children and solutions
--- loop1 :: [Node] -> ([Node], [Unifier])
--- loop1 [] = []
--- loop1 (node : nodes) =
---     let
---         -- newTree = add subtree to tree
---         (gens, sols) = loop2 $ genn node
---     in 
---         (gens, sols) `cat` loop1 children
+loop1 :: [Node] -> Database -> ([Node], [Unifier])
+loop1 [] db = ([], []) -- 
+loop1 (node : nodes) db =
+    -- corner case: node has empty terms
+    let (Node terms mgu) = node in
+    if null terms then ([node], [u | Just u <- mgu]) else
+    -- standard case:
+    case genn node db of
+        Nothing -> loop1 nodes db
+        Just gen -> loop2 gen `cat` loop1 nodes db
 
 -- LOOP2
 -- check all children for solutions
@@ -132,8 +141,70 @@ loop2 :: [Node] -> ([Node], [Unifier])
 loop2 [] = ([], [])
 loop2 (node : nodes) =
     case node of
-        Node term (Nothing : _) -> ([], []) `cat` loop2 nodes -- remove node from nodes; no solution found
-        Node term (Just [] : mgu) -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution
+        Node terms (Nothing : _) -> ([], []) `cat` loop2 nodes -- remove node from nodes; no solution found
+        -- Node terms (Just [] : mgu) -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution
+        Node [] mgu -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution -- here, maybe replave [node] with []
         _ -> ([node], []) `cat` loop2 nodes -- continue; no solution found
 
 
+-- resolving the unifier list produced by the resolve method
+-- left sides are not modified, while all right sides are solved to become terms(not vars)
+-- resolveUnifier :: [Unifier] -> [Unifier]
+-- resolveUnifier [] = []
+-- resolveUnifier (x : xs) = [if  | PLEquation vp tp <- findPure (removeEmpty (x : xs)), PLEquation v t <- x] : resolveUnifier xs
+--     where 
+--         removeEmpty :: [Unifier] -> [Unifier]
+--         removeEmpty (x : xs) =
+--             case x of 
+--                 [] -> removeEmpty xs -- skip empty unifiers
+--                 _ -> x : removeEmpty xs 
+--         -- get all PLEquations that are of type X = term(contains no vars)
+--         isPure :: Pterm -> Bool
+--         isPure (JustPvar _) = False
+--         isPure (Pterm name terms) =
+--             case terms of
+--                 [] -> True
+--                 (x : xs) -> isPure x && isPure (Pterm name xs)
+--         findPure :: Unifier -> Unifier
+--         findPure eq = [PLEquation v t | PLEquation v t <- eq, isPure t]
+
+
+-- HERE, needs renaming
+test31 = resolve (Node [Pterm "proud" [JustPvar (Pvar "Z")]] [])
+    [Prule (Pterm "proud" [JustPvar (Pvar "X")])
+        [Pterm "parent" [JustPvar (Pvar "X"), JustPvar (Pvar "Y")],
+         Pterm "newborn" [JustPvar (Pvar "Y")]],
+     Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
+     Pfact (Pterm "newborn" [Pterm "ann" []])]
+
+
+test_prog = [Pfact (Pterm "natNumber" [Pterm "zero" []]),
+     Prule (Pterm "natNumber" [Pterm "succ" [JustPvar (Pvar "X")]]) [Pterm "natNumber" [JustPvar (Pvar "X")]]]
+test39 = genn (Node [Pterm "natNumber" [JustPvar (Pvar "X")]] [])
+    -- genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
+    test_prog
+
+test40 = genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
+    test_prog
+
+test41 = genn (Node [Pterm "natNumber" [Pterm "succ" [JustPvar (Pvar "X")]]] [Just [PLEquation (Pvar "X") (Pterm "succ" [JustPvar (Pvar "X")])]])
+    test_prog
+
+-- Here
+test42 = resolve (Node [Pterm "natNumber" [JustPvar (Pvar "X")]] []) test_prog
+
+
+-- HERE, composition is not working
+-- test40 = genn (Node [Pterm "f" [Pterm "g" [JustPvar (Pvar "X")]]] [])
+--     -- genn (Node [Pterm "f" [Pterm "g" []]] [])
+--     [Prule (Pterm "f" [Pterm "g" [JustPvar (Pvar "X")]]) [Pterm "h" [JustPvar (Pvar "X")]],
+--      Pfact (Pterm "h" [JustPvar (Pvar "X")])]
+-- -- ?- f(g(X))
+-- -- f(X) :- h(X).
+-- -- h(X).
+
+-- TO-DO
+-- -> add renaming
+-- -> implement isTautology
+-- -> implement resolveUnifier
+-- -> fix composition
