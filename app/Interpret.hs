@@ -1,7 +1,8 @@
 module Interpret where
 
 import Unify
-import Tokenize
+import Tokenize ( AST(..), Atom(..), Term(..) )
+import qualified Data.Maybe
 
 -- Input: A Goal and a program P
 -- Output: An instance of G that is logical consequence of P
@@ -48,7 +49,7 @@ astToIR (x : xs) =
             case t of
                 JustAtom (Atom name args) -> Pterm name [termToPterm t | t <- args]
                 JustConstant name -> Pterm name [] -- constants are functions(terms) with zero arguments
-                JustVariable name -> JustPvar (Pvar name)
+                JustVariable name -> JustPvar (pVar name)
 
 
 
@@ -65,7 +66,9 @@ genn (Node (term:xs) mgu) db =
     let solved = solve term db in
     case solved of
         [] -> Nothing
-        _ -> Just [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
+        _ -> -- Just [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
+            -- HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            Just [Node [t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
     where
         -- rename
         -- apply = plUnifierApplyToTerm??
@@ -129,7 +132,7 @@ loop1 [] db = ([], []) --
 loop1 (node : nodes) db =
     -- corner case: node has empty terms
     let (Node terms mgu) = node in
-    if null terms then ([node], [u | Just u <- mgu]) else
+    if null terms then ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) else -- here
     -- standard case:
     case genn node db of
         Nothing -> loop1 nodes db
@@ -143,7 +146,8 @@ loop2 (node : nodes) =
     case node of
         Node terms (Nothing : _) -> ([], []) `cat` loop2 nodes -- remove node from nodes; no solution found
         -- Node terms (Just [] : mgu) -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution
-        Node [] mgu -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution -- here, maybe replave [node] with []
+        -- HERE
+        Node [] mgu -> ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) `cat` loop2 nodes-- return solution -- here, maybe replave [node] with []
         _ -> ([node], []) `cat` loop2 nodes -- continue; no solution found
 
 
@@ -169,36 +173,49 @@ loop2 (node : nodes) =
 --         findPure eq = [PLEquation v t | PLEquation v t <- eq, isPure t]
 
 
--- HERE, needs renaming
-test31 = resolve (Node [Pterm "proud" [JustPvar (Pvar "Z")]] [])
-    [Prule (Pterm "proud" [JustPvar (Pvar "X")])
-        [Pterm "parent" [JustPvar (Pvar "X"), JustPvar (Pvar "Y")],
-         Pterm "newborn" [JustPvar (Pvar "Y")]],
+-- merges unifiers into the last unifier of the stack; returns solution
+-- here: could be implemented better?
+mergeUnifiers :: [Unifier] -> Unifier
+mergeUnifiers [] = [] -- unnecesary?
+mergeUnifiers [x] = x
+mergeUnifiers (xa : xb : xs) =
+    case xa of
+        [] -> mergeUnifiers (xb : xs) -- skip empty unifiers
+        _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb :xs)
+
+-- HERE, needs renaming?
+test101 = resolve (Node [Pterm "proud" [JustPvar (pVar "Z")]] [])
+    [Prule (Pterm "proud" [JustPvar (pVar "X")])
+        [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")],
+         Pterm "newborn" [JustPvar (pVar "Y")]],
      Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
      Pfact (Pterm "newborn" [Pterm "ann" []])]
 
 
 test_prog = [Pfact (Pterm "natNumber" [Pterm "zero" []]),
-     Prule (Pterm "natNumber" [Pterm "succ" [JustPvar (Pvar "X")]]) [Pterm "natNumber" [JustPvar (Pvar "X")]]]
-test39 = genn (Node [Pterm "natNumber" [JustPvar (Pvar "X")]] [])
+     Prule (Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]) [Pterm "natNumber" [JustPvar (pVar "X")]]]
+test40 = genn (Node [Pterm "natNumber" [JustPvar (pVar "X")]] [])
     -- genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
     test_prog
 
-test40 = genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
+test41 = genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (pVar "X") (Pterm "zero" [])]])
     test_prog
 
-test41 = genn (Node [Pterm "natNumber" [Pterm "succ" [JustPvar (Pvar "X")]]] [Just [PLEquation (Pvar "X") (Pterm "succ" [JustPvar (Pvar "X")])]])
+test42 = genn (Node [Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]] [Just [PLEquation (pVar "X") (Pterm "succ" [JustPvar (pVar "X")])]])
     test_prog
 
 -- Here
-test42 = resolve (Node [Pterm "natNumber" [JustPvar (Pvar "X")]] []) test_prog
+test43 = resolve (Node [Pterm "natNumber" [JustPvar (pVar "X")]] []) test_prog
 
+test44 = mergeUnifiers
+    [[PLEquation (Pvar {name = "X", label = 0}) (Pterm "zero" [])],
+    [PLEquation (Pvar {name = "X", label = 0}) (Pterm "succ" [JustPvar (Pvar {name = "X", label = 0})])]]
 
 -- HERE, composition is not working
--- test40 = genn (Node [Pterm "f" [Pterm "g" [JustPvar (Pvar "X")]]] [])
+-- test40 = genn (Node [Pterm "f" [Pterm "g" [JustPvar (pVar "X")]]] [])
 --     -- genn (Node [Pterm "f" [Pterm "g" []]] [])
---     [Prule (Pterm "f" [Pterm "g" [JustPvar (Pvar "X")]]) [Pterm "h" [JustPvar (Pvar "X")]],
---      Pfact (Pterm "h" [JustPvar (Pvar "X")])]
+--     [Prule (Pterm "f" [Pterm "g" [JustPvar (pVar "X")]]) [Pterm "h" [JustPvar (pVar "X")]],
+--      Pfact (Pterm "h" [JustPvar (pVar "X")])]
 -- -- ?- f(g(X))
 -- -- f(X) :- h(X).
 -- -- h(X).

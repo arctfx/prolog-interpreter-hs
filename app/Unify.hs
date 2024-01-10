@@ -11,11 +11,12 @@ data Variable where
 data Pquery = Pquery String [Pterm] deriving (Show, Eq)
 data Pterm
     = Pterm String [Pterm] -- Pterm Term 
-    | JustPvar Pvar deriving (Show, Eq)
+    | JustPvar Pvar deriving (Eq)
     -- consts are functions with zero arguments
-data Pvar = Pvar String deriving (Show, Eq)
-data Name = Name String Int -- name, id -- only for Pvars
-  deriving (Show, Eq) 
+data Pvar = Pvar {name :: String, label :: Integer} deriving (Eq)
+-- def constructor
+pVar :: String -> Pvar
+pVar name = Pvar name 0
 
 -- G - substitution
 -- G :: [Equation]
@@ -150,7 +151,28 @@ compatible (Pterm lname largs) (Pterm rname rargs) = lname == rname && length la
 
 -- plunify.h
 type PLUnifierStruct = [PLEquation]
-data PLEquation = PLEquation Pvar Pterm deriving (Show, Eq) -- PLSubstitution
+data PLEquation = PLEquation Pvar Pterm deriving (Eq) -- PLSubstitution
+
+-- for printing purposes
+instance Show PLEquation where
+    show :: PLEquation -> String
+    show (PLEquation var term) = show var ++ " = " ++ show term
+
+instance Show Pterm where
+    show :: Pterm -> String
+    show (Pterm name []) = name
+    show (Pterm name (x : xs)) = name ++ "(" ++ show x ++ loop xs ++ ")"
+        where 
+            loop :: [Pterm] -> String
+            loop [] = ""
+            loop [x] = ", " ++ show x 
+            loop (x : xs) = ", " ++ show x ++ loop xs  
+    show (JustPvar var) = show var
+
+instance Show Pvar where
+    show :: Pvar -> String
+    show (Pvar name _) = name 
+
 
 plUnify :: Pterm -> Pterm -> Maybe PLUnifierStruct
 plUnify t1 t2 =

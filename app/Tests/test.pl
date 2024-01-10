@@ -16,3 +16,6 @@ mother(indira, rajiv).
 
 natNumber(zero).
 natNumber(succ(X)) :- natNumber(X).
+
+ancestor(X, Y) :- parent_child(X, Y).
+ancestor(X, Y) :- parent_child(X, Z), ancestor(Z, Y).
