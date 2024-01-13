@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
 module Interpret where
 
 import Unify
@@ -63,34 +65,47 @@ astToIR (x : xs) =
 -- goal reduction
 genn :: Node -> Database -> Maybe [Node]
 genn (Node (term:xs) mgu) db =
-    let solved = solve term db in
+    let solved = solve term xs db 
+        (Pterm l r) = term
+    in
     case solved of
         [] -> Nothing
         _ -> -- Just [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
             -- HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            Just [Node [t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
+            Just [Node [t | t <- terms] (Just unifier : mgu) | (terms, unifier) <- solved]
     where
         -- rename
-        -- apply = plUnifierApplyToTerm??
-        apply :: Unifier -> Pterm -> Pterm
-        apply [] term = term
-        apply (eq : eqs) term = apply eqs (plUnifierApplyToTerm [eq] term)
+        -- apply filtered unifier to the right side of rule
+        -- arguments: unifier; left side of rule; right side of rule
+        apply :: Unifier -> Pterm -> [Pterm] -> [Pterm]
+        apply unifier (Pterm l r) terms =
+            fmap (plUnifierApplyToTerm (filter (pred r) unifier)) terms
+            where
+                pred :: [Pterm] -> PLEquation -> Bool
+                pred [] _ = False
+                pred (arg : args) (PLEquation var r) =
+                    case arg of
+                        Pterm _ _ -> pred args (PLEquation var r)
+                        JustPvar pvar -> (pvar == var) || pred args (PLEquation var r)
+
 
         -- returns (negative terms, unifier)
-        solve :: Pterm -> Database -> [([Pterm], Unifier)]
-        solve term [] = []
-        solve term (x : xs) =
+        -- unify term with left side of rule
+        -- apply filtered unifier to term and others
+        solve :: Pterm -> [Pterm] -> Database -> [([Pterm], Unifier)]
+        solve term others [] = []
+        solve term others (x : xs) =
             case x of
                 Prule l r ->
                     case plUnify term l of
-                        Nothing -> solve term xs
-                        Just [] -> ([], []) : solve term xs
-                        Just mgu -> (r, mgu) : solve term xs
+                        Nothing -> solve term others xs
+                        Just [] -> (others, []) : solve term others xs
+                        Just mgu -> (apply mgu l (r ++ others), mgu) : solve term others xs -- here, used to be (r, mgu)
                 Pfact t ->
                     case plUnify term t of
-                        Nothing -> solve term xs
-                        Just [] -> ([], []) : solve term xs
-                        Just mgu -> ([t], mgu) : solve term xs
+                        Nothing -> solve term others xs
+                        Just [] -> (others, []) : solve term others xs
+                        Just mgu -> (t : fmap (plUnifierApplyToTerm mgu) others, mgu) : solve term others xs -- here, maybe use apply?
 
 genn _ _ = Nothing
 
@@ -132,7 +147,7 @@ loop1 [] db = ([], []) --
 loop1 (node : nodes) db =
     -- corner case: node has empty terms
     let (Node terms mgu) = node in
-    if null terms then ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) else -- here
+    if null terms then ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) else -- here, fix mergeUnifiers
     -- standard case:
     case genn node db of
         Nothing -> loop1 nodes db
@@ -175,13 +190,47 @@ loop2 (node : nodes) =
 
 -- merges unifiers into the last unifier of the stack; returns solution
 -- here: could be implemented better?
+-- here: alternative: unifiers keep empty substitutions (X = X)
+-- alg1: [Unifier] -> Unifier
+-- unifier_list = (θx : θs)
+-- if x == 1 then return θx else
+-- foreach eq in θx:
+--      foreach θ in θs:
+--          foreach eq' in θ:
+--              if eq'.right is JustPvar and eq.var == eq'.right:
+--                  eq'.right = eq.right
+--                  break
+--          break
 mergeUnifiers :: [Unifier] -> Unifier
-mergeUnifiers [] = [] -- unnecesary?
+mergeUnifiers [] = []
 mergeUnifiers [x] = x
-mergeUnifiers (xa : xb : xs) =
+mergeUnifiers (xa : xb : xs) = -- mergeUnifiers (merge xa xb : xs)
     case xa of
         [] -> mergeUnifiers (xb : xs) -- skip empty unifiers
-        _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb :xs)
+        _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb : xs)
+    -- where
+    --     merge [] ys = ys 
+    --     merge (x : xs) ys = merge xs (x : ys)
+
+-- LATEST
+prog2 =
+    [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
+     Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
+     Pfact (Pterm "parent" [Pterm "ivan" [], Pterm "penka" []]),
+     Pfact (Pterm "parent" [Pterm "penka" [], Pterm "asen" []]),
+     Pfact (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "X")]),
+     Prule (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")])
+           [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")], Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]]
+
+test60 = plUnify (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")]) (Pterm "ancestor" [Pterm "gosh" [], JustPvar (pVar "Y")])
+
+test61 = resolve (Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []) prog2
+test62 = genn (Node [Pterm "parent" [Pterm "gosho" [], JustPvar (pVar "Y")],
+               Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]
+               [Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
+test63 = genn (Node [Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []],
+               Pterm "ancestor" [JustPvar (pVar "ivan"), JustPvar (pVar "Z")]]
+               [Just [PLEquation (pVar "Y") (Pterm "ivan" [])], Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
 
 -- HERE, needs renaming?
 test101 = resolve (Node [Pterm "proud" [JustPvar (pVar "Z")]] [])

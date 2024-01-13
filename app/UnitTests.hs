@@ -12,7 +12,10 @@ test :: IO [Unifier]
 test = do
     db <- interpretFile "Tests/test.pl"
     let
-        node = Node [Pterm "proud" [JustPvar (pVar "Z")]] []
+        -- node = Node [Pterm "proud" [JustPvar (pVar "Z")]] []
+        -- node = Node [Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar "X")]] []
+        node = Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "zero" []]], Pterm "s" [Pterm "s" [Pterm "zero" []]], JustPvar (pVar "X")]] []
+        -- node = Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []
         res = resolve node db
         in return res
 
@@ -93,6 +96,13 @@ test38 = do
 
 --
 
+test39 = do
+    db <- interpretFile "Tests/test.pl"
+    let
+        --node = Node [Pterm "child" [JustPvar (Pvar "X"), Pterm "john" []]] []
+        node = Node [Pterm "even" [JustPvar (pVar "X")]] []
+        res = resolve node db
+        in return res
 
 
 test50 = plUnify (Pterm "natNumber" [JustPvar (pVar "X")])  (Pterm "natNumber" [Pterm "zero" []])
@@ -102,6 +112,10 @@ test51 = plUnify (Pterm "natNumber" [JustPvar (pVar "X")])  (Pterm "natNumber" [
 
 test52 = plUnifierApplyToUnifier [PLEquation (pVar "X") (Pterm "zero" [])] [PLEquation (pVar "X") (Pterm "succ" [JustPvar (pVar "X")])]
 
+
+test53  = plUnify (Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar "X")])
+    (Pterm "sum" [JustPvar (pVar "N"), Pterm "zero" [], JustPvar (pVar "N")])
+-- sum(N, zero, N).
 -- test33 = 
 --     -- case test32 of
 --     genn (head test32)
@@ -136,3 +150,5 @@ test52 = plUnifierApplyToUnifier [PLEquation (pVar "X") (Pterm "zero" [])] [PLEq
 -- test37 = genn (Node [Pterm "proud" [JustPvar (Pvar "Z")]] [])
 --     [Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
 --      Pfact (Pterm "newborn" [Pterm "ann" []])]
+
+

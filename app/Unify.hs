@@ -137,14 +137,14 @@ arity :: Pterm -> Int
 arity (Pterm name args) = length args
 arity _ = 0
 
-occurs :: Pvar -> Pterm -> Bool
-occurs _ _ = False
 -- occurs :: Pvar -> Pterm -> Bool
--- occurs var1 (JustPvar var2) = var1 == var2
--- occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
---     where
---         foo var [] = False
---         foo var (t : ts) = occurs var t || foo var ts
+-- occurs _ _ = False
+occurs :: Pvar -> Pterm -> Bool
+occurs var1 (JustPvar var2) = var1 == var2
+occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
+    where
+        foo var [] = False
+        foo var (t : ts) = occurs var t || foo var ts
 
 compatible :: Pterm -> Pterm -> Bool
 compatible (Pterm lname largs) (Pterm rname rargs) = lname == rname && length largs == length rargs

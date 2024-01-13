@@ -1,21 +1,8 @@
-grandchild(X, Y) :- child(X, Z), child(Z,Y).
-
-child(tom, john).
-child(ann, tom).
-child(john, mark).
-child(alice, john).
-
-proud(X) :- parent(X, Y), newborn(Y).
-parent(X, Y) :- father(X, Y).
-parent(X, Y) :- mother(X, Y).
-father(tom, ann) :- newborn(ann).
-
-grandfather(x,z) :- father(x,y), parent(y,z).
-father(nehru, indira).
-mother(indira, rajiv).
-
-natNumber(zero).
-natNumber(succ(X)) :- natNumber(X).
-
-ancestor(X, Y) :- parent_child(X, Y).
-ancestor(X, Y) :- parent_child(X, Z), ancestor(Z, Y).
+sum(N, zero, N).
+sum(N, s(M), s(K)) :- sum(N, M, K).
+parent(pesho, gosho).
+parent(gosho, ivan).
+parent(ivan, penka).
+parent(penka, asen).
+ancestor(X, Z) :- parent(X, Y), ancestor(Y, Z).
+ancestor(X, X).
