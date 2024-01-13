@@ -84,9 +84,17 @@ genn (Node (term:xs) mgu) db =
                 pred :: [Pterm] -> PLEquation -> Bool
                 pred [] _ = False
                 pred (arg : args) (PLEquation var r) =
+                    if occurs var r then False else -- should be outside of loop
                     case arg of
-                        Pterm _ _ -> pred args (PLEquation var r)
+                        Pterm _ _ -> (occurs var arg) || pred args (PLEquation var r)
                         JustPvar pvar -> (pvar == var) || pred args (PLEquation var r)
+
+                occurs :: Pvar -> Pterm -> Bool
+                occurs var1 (JustPvar var2) = var1 == var2
+                occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
+                    where
+                        foo var [] = False
+                        foo var (t : ts) = occurs var t || foo var ts
 
 
         -- returns (negative terms, unifier)
@@ -232,13 +240,40 @@ test63 = genn (Node [Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []],
                Pterm "ancestor" [JustPvar (pVar "ivan"), JustPvar (pVar "Z")]]
                [Just [PLEquation (pVar "Y") (Pterm "ivan" [])], Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
 
--- HERE, needs renaming?
-test101 = resolve (Node [Pterm "proud" [JustPvar (pVar "Z")]] [])
-    [Prule (Pterm "proud" [JustPvar (pVar "X")])
-        [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")],
-         Pterm "newborn" [JustPvar (pVar "Y")]],
-     Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
-     Pfact (Pterm "newborn" [Pterm "ann" []])]
+prog3 = 
+    [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
+     Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])
+           [Pterm "sum" [JustPvar (pVar "N"), JustPvar (pVar "M"), JustPvar (pVar "K")]]]
+
+test70 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog3
+
+test71 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog3
+
+test72 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "z" []], JustPvar (pVar "K")]] [])
+    prog3
+
+test73 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")]] [])
+    prog3
+
+test74 = plUnify (Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")])
+    (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")])
+
+-- append(empty, L, L).
+-- append(cons(H, T1), L2, cons(H, T3)) :- append(T1, L2, T3).
+-- 
+-- ?- append(cons(baba, cons(dyado, empty)), cons(lelya, cons(chicho, empty)), L)
+prog4 = 
+    [Pfact (Pterm "append" [Pterm "empty" [], JustPvar (pVar "L"), JustPvar (pVar "L")]),
+     Prule (Pterm "append" [Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T1")], JustPvar (pVar "L2"), Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T3")]])
+        [Pterm "append" [JustPvar (pVar "T1"), JustPvar (pVar "L2"), JustPvar (pVar "T3")]]]
+
+test80 = resolve (Node [Pterm "append"
+    [Pterm "cons" [Pterm "baba" [], Pterm "cons" [Pterm "dyado" [], Pterm "empty" []]],
+     Pterm "cons" [Pterm "lelya" [], Pterm "cons" [Pterm "chicho" [], Pterm "empty" []]],
+     JustPvar (pVar "L")]] [])
+    prog4
 
 
 test_prog = [Pfact (Pterm "natNumber" [Pterm "zero" []]),

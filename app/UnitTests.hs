@@ -151,4 +151,3 @@ test53  = plUnify (Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar
 --     [Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
 --      Pfact (Pterm "newborn" [Pterm "ann" []])]
 
-
