@@ -151,3 +151,77 @@ test53  = plUnify (Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar
 --     [Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
 --      Pfact (Pterm "newborn" [Pterm "ann" []])]
 
+-- LATEST
+prog2 =
+    [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
+     Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
+     Pfact (Pterm "parent" [Pterm "ivan" [], Pterm "penka" []]),
+     Pfact (Pterm "parent" [Pterm "penka" [], Pterm "asen" []]),
+     Pfact (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "X")]),
+     Prule (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")])
+           [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")], Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]]
+
+test60 = plUnify (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")]) (Pterm "ancestor" [Pterm "gosh" [], JustPvar (pVar "Y")])
+
+test61 = resolve (Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []) prog2
+test62 = genn (Node [Pterm "parent" [Pterm "gosho" [], JustPvar (pVar "Y")],
+               Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]
+               [Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
+test63 = genn (Node [Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []],
+               Pterm "ancestor" [JustPvar (pVar "ivan"), JustPvar (pVar "Z")]]
+               [Just [PLEquation (pVar "Y") (Pterm "ivan" [])], Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
+
+prog3 = 
+    [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
+     Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])
+           [Pterm "sum" [JustPvar (pVar "N"), JustPvar (pVar "M"), JustPvar (pVar "K")]]]
+
+test70 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog3
+
+test71 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog3
+
+test72 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "z" []], JustPvar (pVar "K")]] [])
+    prog3
+
+test73 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")]] [])
+    prog3
+
+test74 = plUnify (Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")])
+    (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")])
+
+-- append(empty, L, L).
+-- append(cons(H, T1), L2, cons(H, T3)) :- append(T1, L2, T3).
+-- 
+-- ?- append(cons(baba, cons(dyado, empty)), cons(lelya, cons(chicho, empty)), L)
+prog4 = 
+    [Pfact (Pterm "append" [Pterm "empty" [], JustPvar (pVar "L"), JustPvar (pVar "L")]),
+     Prule (Pterm "append" [Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T1")], JustPvar (pVar "L2"), Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T3")]])
+        [Pterm "append" [JustPvar (pVar "T1"), JustPvar (pVar "L2"), JustPvar (pVar "T3")]]]
+
+test80 = resolve (Node [Pterm "append"
+    [Pterm "cons" [Pterm "baba" [], Pterm "cons" [Pterm "dyado" [], Pterm "empty" []]],
+     Pterm "cons" [Pterm "lelya" [], Pterm "cons" [Pterm "chicho" [], Pterm "empty" []]],
+     JustPvar (pVar "L")]] [])
+    prog4
+
+
+test_prog = [Pfact (Pterm "natNumber" [Pterm "zero" []]),
+     Prule (Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]) [Pterm "natNumber" [JustPvar (pVar "X")]]]
+test40 = genn (Node [Pterm "natNumber" [JustPvar (pVar "X")]] [])
+    -- genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
+    test_prog
+
+test41 = genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (pVar "X") (Pterm "zero" [])]])
+    test_prog
+
+test42 = genn (Node [Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]] [Just [PLEquation (pVar "X") (Pterm "succ" [JustPvar (pVar "X")])]])
+    test_prog
+
+-- Here
+test43 = resolve (Node [Pterm "natNumber" [JustPvar (pVar "X")]] []) test_prog
+
+test44 = mergeUnifiers
+    [[PLEquation (Pvar {name = "X", label = 0}) (Pterm "zero" [])],
+    [PLEquation (Pvar {name = "X", label = 0}) (Pterm "succ" [JustPvar (Pvar {name = "X", label = 0})])]]

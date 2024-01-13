@@ -200,7 +200,7 @@ loop2 (node : nodes) =
 -- here: could be implemented better?
 -- here: alternative: unifiers keep empty substitutions (X = X)
 -- alg1: [Unifier] -> Unifier
--- unifier_list = (θx : θs)
+-- unifier_list = (θx : θs) //foreach θx in θs
 -- if x == 1 then return θx else
 -- foreach eq in θx:
 --      foreach θ in θs:
@@ -212,100 +212,62 @@ loop2 (node : nodes) =
 mergeUnifiers :: [Unifier] -> Unifier
 mergeUnifiers [] = []
 mergeUnifiers [x] = x
+-- mergeUnifiers ([] : ts) = mergeUnifiers ts
+-- mergeUnifiers ((x : xs) : ts) = mergeUnifiers (loop (x : xs) ts)
+--     where
+--         loop :: Unifier -> [Unifier] -> [Unifier]
+--         loop [] xs = xs
+--         loop (eq : eqs) xs = loop eqs (loop1 eq [] xs)
+--             where
+--                 loop1 :: PLEquation -> [Unifier] -> [Unifier] -> [Unifier]
+--                 loop1 _ stack [] = stack
+--                 loop1 eq stack (x : xs) = 
+--                     case loop2 eq [] x of
+--                         Nothing -> loop1 eq (stack ++ [x]) xs
+--                         Just unifier -> stack ++ [unifier] ++ xs
+--                 loop2 :: PLEquation -> Unifier -> Unifier -> Maybe Unifier
+--                 loop2 eq stack [] = Nothing
+--                 loop2 eq stack (eq' : eqs') =
+--                     let (PLEquation var right) = eq in
+--                     case eq' of
+--                         PLEquation var' (JustPvar right') ->
+--                             if var == right' then Just (stack ++ [PLEquation var' right] ++ eqs')
+--                             else loop2 eq (stack++[eq]) eqs'
+--                         _ -> loop2 eq (stack++[eq]) eqs'
+
+-- unfortunately, the current iteration of this function is VERY SLOW (too much memory is used)
+-- to-do: fix that
 mergeUnifiers (xa : xb : xs) = -- mergeUnifiers (merge xa xb : xs)
-    case xa of
-        [] -> mergeUnifiers (xb : xs) -- skip empty unifiers
-        _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb : xs)
+    merge [xb] xs
+    where
+        merge :: [Unifier] -> [Unifier] -> Unifier
+        merge [] [] = []
+        merge (x : xs) [] = x
+        merge stack [x] = plUnifierApplyToUnifier (reverse (concat stack)) x
+        merge stack (xa : xs) =
+            case xa of
+                [] -> merge stack xs
+                _ -> merge (stack ++ [plUnifierApplyToUnifier (reverse (concat stack)) xa]) xs
+    -- case xa of
+    --     [] -> mergeUnifiers (xb : xs) -- skip empty unifiers
+    --     _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb : xs)
     -- where
-    --     merge [] ys = ys 
-    --     merge (x : xs) ys = merge xs (x : ys)
+    --     -- reversed
+    --     merge :: Unifier -> Unifier -> Unifier
+    --     merge xs [] = PLEquation (pVar "_") (JustPvar (pVar "_")) : xs
+    --     merge xs (y : ys) = merge (y : xs) ys
 
--- LATEST
-prog2 =
-    [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
-     Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
-     Pfact (Pterm "parent" [Pterm "ivan" [], Pterm "penka" []]),
-     Pfact (Pterm "parent" [Pterm "penka" [], Pterm "asen" []]),
-     Pfact (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "X")]),
-     Prule (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")])
-           [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")], Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]]
+testmerge = plUnifierApplyToUnifier
+    [PLEquation (pVar "N") (Pterm "s" [Pterm "s" [JustPvar (pVar "zero")]]),
+     PLEquation (pVar "M") (Pterm "zero" []),
+     PLEquation (pVar "K") (Pterm "s" [JustPvar (pVar "K")])]
+    [PLEquation (pVar "K") (Pterm "s" [Pterm "s" [Pterm "zero" []]]),
+     PLEquation (pVar "N") (Pterm "s" [Pterm "s" [Pterm "zero" []]])]
 
-test60 = plUnify (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")]) (Pterm "ancestor" [Pterm "gosh" [], JustPvar (pVar "Y")])
-
-test61 = resolve (Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []) prog2
-test62 = genn (Node [Pterm "parent" [Pterm "gosho" [], JustPvar (pVar "Y")],
-               Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]
-               [Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
-test63 = genn (Node [Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []],
-               Pterm "ancestor" [JustPvar (pVar "ivan"), JustPvar (pVar "Z")]]
-               [Just [PLEquation (pVar "Y") (Pterm "ivan" [])], Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
-
-prog3 = 
+prog5 = 
     [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
      Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])
            [Pterm "sum" [JustPvar (pVar "N"), JustPvar (pVar "M"), JustPvar (pVar "K")]]]
 
-test70 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
-    prog3
-
-test71 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
-    prog3
-
-test72 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "z" []], JustPvar (pVar "K")]] [])
-    prog3
-
-test73 = genn (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")]] [])
-    prog3
-
-test74 = plUnify (Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "z" [], JustPvar (pVar "K")])
-    (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")])
-
--- append(empty, L, L).
--- append(cons(H, T1), L2, cons(H, T3)) :- append(T1, L2, T3).
--- 
--- ?- append(cons(baba, cons(dyado, empty)), cons(lelya, cons(chicho, empty)), L)
-prog4 = 
-    [Pfact (Pterm "append" [Pterm "empty" [], JustPvar (pVar "L"), JustPvar (pVar "L")]),
-     Prule (Pterm "append" [Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T1")], JustPvar (pVar "L2"), Pterm "cons" [JustPvar (pVar "H"), JustPvar (pVar "T3")]])
-        [Pterm "append" [JustPvar (pVar "T1"), JustPvar (pVar "L2"), JustPvar (pVar "T3")]]]
-
-test80 = resolve (Node [Pterm "append"
-    [Pterm "cons" [Pterm "baba" [], Pterm "cons" [Pterm "dyado" [], Pterm "empty" []]],
-     Pterm "cons" [Pterm "lelya" [], Pterm "cons" [Pterm "chicho" [], Pterm "empty" []]],
-     JustPvar (pVar "L")]] [])
-    prog4
-
-
-test_prog = [Pfact (Pterm "natNumber" [Pterm "zero" []]),
-     Prule (Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]) [Pterm "natNumber" [JustPvar (pVar "X")]]]
-test40 = genn (Node [Pterm "natNumber" [JustPvar (pVar "X")]] [])
-    -- genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (Pvar "X") (Pterm "zero" [])]])
-    test_prog
-
-test41 = genn (Node [Pterm "natNumber" [Pterm "zero" []]] [Just [PLEquation (pVar "X") (Pterm "zero" [])]])
-    test_prog
-
-test42 = genn (Node [Pterm "natNumber" [Pterm "succ" [JustPvar (pVar "X")]]] [Just [PLEquation (pVar "X") (Pterm "succ" [JustPvar (pVar "X")])]])
-    test_prog
-
--- Here
-test43 = resolve (Node [Pterm "natNumber" [JustPvar (pVar "X")]] []) test_prog
-
-test44 = mergeUnifiers
-    [[PLEquation (Pvar {name = "X", label = 0}) (Pterm "zero" [])],
-    [PLEquation (Pvar {name = "X", label = 0}) (Pterm "succ" [JustPvar (Pvar {name = "X", label = 0})])]]
-
--- HERE, composition is not working
--- test40 = genn (Node [Pterm "f" [Pterm "g" [JustPvar (pVar "X")]]] [])
---     -- genn (Node [Pterm "f" [Pterm "g" []]] [])
---     [Prule (Pterm "f" [Pterm "g" [JustPvar (pVar "X")]]) [Pterm "h" [JustPvar (pVar "X")]],
---      Pfact (Pterm "h" [JustPvar (pVar "X")])]
--- -- ?- f(g(X))
--- -- f(X) :- h(X).
--- -- h(X).
-
--- TO-DO
--- -> add renaming
--- -> implement isTautology
--- -> implement resolveUnifier
--- -> fix composition
+test170 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog5
