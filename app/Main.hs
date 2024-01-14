@@ -536,6 +536,7 @@ compileFile fileName = do
             ast = cmpl (filter (not . null) (lines contents))
             in return $ Just $ Program ast
 
+-- deprecated
 interpretFile :: String -> IO Database
 interpretFile fileName = do
         contents <- readFile fileName

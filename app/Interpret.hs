@@ -118,7 +118,7 @@ genn (Node (term:xs) mgu) db =
 genn _ _ = Nothing
 
 
-
+-- deprecated
 cat :: ([a], [b]) -> ([a], [b]) -> ([a], [b])
 cat (x, y) (xs, ys) = (x ++ xs, y ++ ys)
 
