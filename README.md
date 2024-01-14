@@ -35,9 +35,9 @@ The `compileFile` function parses a text file and returns a Program object of AS
 
 ## Unification
 The intermediate representation data types start with either `P` or `PL`.
-The main difference between between the AST and IR is that terms can be either an atomic formula (a function with arguments, or a constant) or a variable. Constants are represented as functions with no arguments. 
+The main difference between the AST and IR is that terms can be either an atomic formula (a function with arguments, or a constant) or a variable. Constants are represented as functions with no arguments. 
 
-A unifier (sometimes denoted in the code as `mgu` - most general unifier) is a set of equation - `PLEquation` (or `PLSubstitution`). Unification is the process of trying to find a substitution that makes two terms equal. The unification algorithm pseudocode is as follows:
+A unifier (sometimes denoted in the code as `mgu` as most general unifier) is a set of equation - `PLEquation` (or `PLSubstitution`). Unification is the process of trying to find a substitution that makes two terms equal. The unification algorithm pseudocode is as follows:
 
 ```
 Initialise the MGU to an empty unifier
@@ -63,6 +63,7 @@ While the stack is not empty
         	Failure
 Return the MGU
 ```
+_The algorithm is borrowed from the book The Art of Prolog._
 
 ## Resolution
 
@@ -99,3 +100,6 @@ foreach pclause{term = body} in DB:
          Just _ -> return Node with u and newQuery = apply u to query
 goal reduction
 ```
+
+## Testing
+_Note: to-do: automize unit tests._
