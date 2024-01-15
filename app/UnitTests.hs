@@ -13,12 +13,14 @@ test :: IO [Unifier]
 test = do
     db <- interpretFile "Tests/test.pl"
     let
-        -- node = Node [Pterm "proud" [JustPvar (pVar "Z")]] []
-        -- node = Node [Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar "X")]] []
-        node = Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "zero" []]], Pterm "s" [Pterm "s" [Pterm "zero" []]], JustPvar (pVar "X")]] []
-        -- node = Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []
+        node = query "?- sum(s(s(zero)), s(s(zero)), X)."
         res = resolve node db
         in return res
+        -- node = Node [Pterm "proud" [JustPvar (pVar "Z")]] []
+        -- node = Node [Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar "X")]] []
+        --node = Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "zero" []]], Pterm "s" [Pterm "s" [Pterm "zero" []]], JustPvar (pVar "X")]] []
+        -- node = Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []
+        
 
 test2 :: IO [Unifier]
 test2 = do

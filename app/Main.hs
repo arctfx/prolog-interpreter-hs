@@ -523,7 +523,7 @@ ast prs =
                         _ -> Nothing -- error; needs revision
         _ -> Nothing -- error
 
--- compiles a fine to Program AST
+-- compiles a file to Program AST
 compileFile :: String -> IO (Maybe (Program AST))
 compileFile fileName = do
         contents <- readFile fileName
@@ -537,7 +537,7 @@ compileFile fileName = do
             ast = cmpl (filter (not . null) (lines contents))
             in return $ Just $ Program ast
 
--- deprecated
+-- newer
 interpretFile :: String -> IO Database
 interpretFile fileName = do
         contents <- readFile fileName
@@ -551,7 +551,12 @@ interpretFile fileName = do
             ast = cmpl (filter (not . null) (lines contents))
             in return $ astToIR ast
 
-
+query :: String -> Node
+query str = 
+    case compile str of
+        Just (Program x) -> Node [pterm | Pfact pterm <- astToIR x] []
+        Nothing -> Node [] [] -- should throw exception
+   --  astToIR $ cmpl (filter (not . null) (lines contents))
 -- To-dos:
 -- -> Note: Compiler stops after lines that cannot be parsed,
 --      the already parsed lines remain in the program and the compiling is successful

@@ -31,8 +31,10 @@ astToIR (x : xs) =
                 JustConstant name -> Pterm name [] -- constants are functions(terms) with zero arguments
                 JustVariable name -> JustPvar (pVar name)
 
--- queryToNode :: Database -> Node
--- queryToNode [] = [] 
+-- deprecated
+queryToNode :: Database -> Node
+queryToNode [] = Node [] []
+queryToNode db = Node [pterm | Pfact pterm <- db] []
 
 -- Alg: generates a tree of the children nodes of Node
 -- foreach pclause{term = body} in DB

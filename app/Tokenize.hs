@@ -39,14 +39,14 @@ data Token
     | Space
     | Colon
     | Dash
-    | Questionmark -- maybe used in the future
-    | None -- actually a good idea to stick it by
+    | Questionmark
+    | None -- usefull
     | Undefined -- for undefined symbols
     deriving (Show, Eq)
 
 -- AST
 data AST
-    = Rule Atom [Atom] -- Atom
+    = Rule Atom [Atom]
     | Query Atom -- [Atom]
     | Fact Atom
     deriving (Show, Eq)
@@ -58,9 +58,7 @@ data Term
     deriving (Eq)
 
 data Atom
-    = Atom String [Term] -- [Token]
-    -- String [Term]
-    -- Identifier Term [Term]
+    = Atom String [Term]
     deriving (Eq)
 
 -- deprecated
