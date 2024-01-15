@@ -6,34 +6,12 @@ import Unify
 import Tokenize ( AST(..), Atom(..), Term(..) )
 import qualified Data.Maybe
 
--- Input: A Goal and a program P
--- Output: An instance of G that is logical consequence of P
-
--- resolve :: Tree -> [Unifier]
--- genn :: Node -> [Node]
--- 
--- tree = Tree Empty [Tree $ Node query [] $ []]
--- 
--- resolve tree =
---     solutions []
---     newTree = tree 
---     foreach (child in tree.children)
---         nodes = genn child
---         foreach (node in nodes)
---             if node.unifier is Nothing then
---                 remove node from nodes
---             else if node.unifier is [] then
---                 add node.mgu to solutions
---             else continue
---         newTree = add nodes to newTree
---     return solutions ++ resolve newTree
-
 
 type Unifier = PLUnifierStruct
 data Pclause = Prule Pterm [Pterm] | Pfact Pterm deriving (Show, Eq) -- intermediate representation
 type Database = [Pclause] -- [Pterm]
 -- data Tree = Tree Node [Tree]
-data Node = Empty | Node [Pterm] [Maybe Unifier] -- maybe Empty deprecated?
+data Node = Empty | Node [Pterm] [Maybe Unifier] -- maybe Empty is deprecated?
     deriving (Show, Eq)
 
 astToIR :: [AST] -> Database
@@ -53,10 +31,10 @@ astToIR (x : xs) =
                 JustConstant name -> Pterm name [] -- constants are functions(terms) with zero arguments
                 JustVariable name -> JustPvar (pVar name)
 
+-- queryToNode :: Database -> Node
+-- queryToNode [] = [] 
 
-
--- Alg:
--- generates a tree of the children nodes of Node
+-- Alg: generates a tree of the children nodes of Node
 -- foreach pclause{term = body} in DB
 --      let u = plUnify query term in
 --      case u of
@@ -65,16 +43,13 @@ astToIR (x : xs) =
 -- goal reduction
 genn :: Node -> Database -> Maybe [Node]
 genn (Node (term:xs) mgu) db =
-    let solved = solve term xs db 
+    let solved = solve term xs db
         (Pterm l r) = term
     in
     case solved of
         [] -> Nothing
-        _ -> -- Just [Node [apply unifier t | t <- terms ++ xs] (Just unifier : mgu) | (terms, unifier) <- solved]
-            -- HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            Just [Node [t | t <- terms] (Just unifier : mgu) | (terms, unifier) <- solved]
+        _ -> Just [Node terms (Just unifier : mgu) | (terms, unifier) <- solved]
     where
-        -- rename
         -- apply filtered unifier to the right side of rule
         -- arguments: unifier; left side of rule; right side of rule
         apply :: Unifier -> Pterm -> [Pterm] -> [Pterm]
@@ -84,14 +59,14 @@ genn (Node (term:xs) mgu) db =
                 pred :: [Pterm] -> PLEquation -> Bool
                 pred [] _ = False
                 pred (arg : args) (PLEquation var r) =
-                    if occurs var r then False else -- should be outside of loop
+                    if occurs var r then False else -- if should be outside of loop
                     case arg of
-                        Pterm _ _ -> (occurs var arg) || pred args (PLEquation var r)
-                        JustPvar pvar -> (pvar == var) || pred args (PLEquation var r)
+                        Pterm _ _ -> occurs var arg || pred args (PLEquation var r)
+                        JustPvar pvar -> pvar == var || pred args (PLEquation var r)
 
                 occurs :: Pvar -> Pterm -> Bool
                 occurs var1 (JustPvar var2) = var1 == var2
-                occurs var (Pterm name args) = foo var args -- could be done with accumulate and map or even simpler
+                occurs var (Pterm name args) = foo var args -- could be implemented with prelude functions instead; maybe use accomulate or map?
                     where
                         foo var [] = False
                         foo var (t : ts) = occurs var t || foo var ts
@@ -118,7 +93,7 @@ genn (Node (term:xs) mgu) db =
 genn _ _ = Nothing
 
 
--- deprecated
+-- maybe use prelude functions instead
 cat :: ([a], [b]) -> ([a], [b]) -> ([a], [b])
 cat (x, y) (xs, ys) = (x ++ xs, y ++ ys)
 
@@ -135,8 +110,9 @@ cat (x, y) (xs, ys) = (x ++ xs, y ++ ys)
 -- non-empty unifier -> {...}
 resolve :: Node -> Database -> [Unifier]
 resolve node db =
-    maybe [] loop (genn node db)
-    -- here, maybe missing corner case here - if node.term is tautology?
+    fmap (limit node) -- limits only the variables we are looking for as solution
+    (maybe [] loop (genn node db))
+    -- maybe missing corner case - if node.term is tautology?
     where
         loop :: [Node] -> [Unifier]
         loop [] = []
@@ -148,52 +124,37 @@ resolve node db =
                     let (gens, sols) = loop1 gen db in
                     sols ++ loop (nodes ++ gens)
 
--- LOOP1
--- takes nodes, return genn children and solutions
-loop1 :: [Node] -> Database -> ([Node], [Unifier])
-loop1 [] db = ([], []) -- 
-loop1 (node : nodes) db =
-    -- corner case: node has empty terms
-    let (Node terms mgu) = node in
-    if null terms then ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) else -- here, fix mergeUnifiers
-    -- standard case:
-    case genn node db of
-        Nothing -> loop1 nodes db
-        Just gen -> loop2 gen `cat` loop1 nodes db
+        -- LOOP1
+        -- takes nodes, return genn children and solutions
+        loop1 :: [Node] -> Database -> ([Node], [Unifier])
+        loop1 [] db = ([], []) -- 
+        loop1 (node : nodes) db =
+            -- corner case: node has empty terms
+            let (Node terms mgu) = node in
+            if null terms then ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) else -- here, fix mergeUnifiers
+            -- standard case:
+            case genn node db of
+                Nothing -> loop1 nodes db
+                Just gen -> loop2 gen `cat` loop1 nodes db
 
--- LOOP2
--- check all children for solutions
-loop2 :: [Node] -> ([Node], [Unifier])
-loop2 [] = ([], [])
-loop2 (node : nodes) =
-    case node of
-        Node terms (Nothing : _) -> ([], []) `cat` loop2 nodes -- remove node from nodes; no solution found
-        -- Node terms (Just [] : mgu) -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution
-        -- HERE
-        Node [] mgu -> ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) `cat` loop2 nodes-- return solution -- here, maybe replave [node] with []
-        _ -> ([node], []) `cat` loop2 nodes -- continue; no solution found
+        -- LOOP2
+        -- check all children for solutions
+        loop2 :: [Node] -> ([Node], [Unifier])
+        loop2 [] = ([], [])
+        loop2 (node : nodes) =
+            case node of
+                Node terms (Nothing : _) -> ([], []) `cat` loop2 nodes -- remove node from nodes; no solution found
+                -- Node terms (Just [] : mgu) -> ([node], [u | Just u <- mgu]) `cat` loop2 nodes-- return solution
+                -- HERE
+                Node [] mgu -> ([node], [mergeUnifiers (Data.Maybe.catMaybes mgu)]) `cat` loop2 nodes-- return solution -- here, maybe replave [node] with []
+                _ -> ([node], []) `cat` loop2 nodes -- continue; no solution found
 
-
--- resolving the unifier list produced by the resolve method
--- left sides are not modified, while all right sides are solved to become terms(not vars)
--- resolveUnifier :: [Unifier] -> [Unifier]
--- resolveUnifier [] = []
--- resolveUnifier (x : xs) = [if  | PLEquation vp tp <- findPure (removeEmpty (x : xs)), PLEquation v t <- x] : resolveUnifier xs
---     where 
---         removeEmpty :: [Unifier] -> [Unifier]
---         removeEmpty (x : xs) =
---             case x of 
---                 [] -> removeEmpty xs -- skip empty unifiers
---                 _ -> x : removeEmpty xs 
---         -- get all PLEquations that are of type X = term(contains no vars)
---         isPure :: Pterm -> Bool
---         isPure (JustPvar _) = False
---         isPure (Pterm name terms) =
---             case terms of
---                 [] -> True
---                 (x : xs) -> isPure x && isPure (Pterm name xs)
---         findPure :: Unifier -> Unifier
---         findPure eq = [PLEquation v t | PLEquation v t <- eq, isPure t]
+        -- removes unneccessary equations from unifier
+        -- in general node will have only one term
+        limit :: Node -> Unifier -> Unifier
+        limit (Node terms _) unifier = 
+            let pvars = concat [args | Pterm _ args <- terms] in
+            plUnifierApplyToUnifier unifier [PLEquation var (JustPvar var) | JustPvar var <- pvars]
 
 
 -- merges unifiers into the last unifier of the stack; returns solution
@@ -209,53 +170,21 @@ loop2 (node : nodes) =
 --                  eq'.right = eq.right
 --                  break
 --          break
+
+-- note: can be optimized
 mergeUnifiers :: [Unifier] -> Unifier
 mergeUnifiers [] = []
 mergeUnifiers [x] = x
--- mergeUnifiers ([] : ts) = mergeUnifiers ts
--- mergeUnifiers ((x : xs) : ts) = mergeUnifiers (loop (x : xs) ts)
---     where
---         loop :: Unifier -> [Unifier] -> [Unifier]
---         loop [] xs = xs
---         loop (eq : eqs) xs = loop eqs (loop1 eq [] xs)
---             where
---                 loop1 :: PLEquation -> [Unifier] -> [Unifier] -> [Unifier]
---                 loop1 _ stack [] = stack
---                 loop1 eq stack (x : xs) = 
---                     case loop2 eq [] x of
---                         Nothing -> loop1 eq (stack ++ [x]) xs
---                         Just unifier -> stack ++ [unifier] ++ xs
---                 loop2 :: PLEquation -> Unifier -> Unifier -> Maybe Unifier
---                 loop2 eq stack [] = Nothing
---                 loop2 eq stack (eq' : eqs') =
---                     let (PLEquation var right) = eq in
---                     case eq' of
---                         PLEquation var' (JustPvar right') ->
---                             if var == right' then Just (stack ++ [PLEquation var' right] ++ eqs')
---                             else loop2 eq (stack++[eq]) eqs'
---                         _ -> loop2 eq (stack++[eq]) eqs'
+mergeUnifiers (xa : xb : xs) =
+    case (xa, xb) of
+        ([], xb) -> mergeUnifiers (xb : xs) -- skip empty unifiers
+        (xa, []) -> mergeUnifiers (xa : xs) -- skip empty unifiers 
+        _ ->
+            let u = plUnifierApplyToUnifier xa xb in
+                -- [[PLEquation va t | (PLEquation va t) <- xa, (PLEquation vy _) <- u, va /= vy ]]
+                -- [xa]
+            mergeUnifiers (concat (u : [[PLEquation va t | (PLEquation va t) <- xa, (PLEquation vy _) <- u, va /= vy ]]) : xs)
 
--- unfortunately, the current iteration of this function is VERY SLOW (too much memory is used)
--- to-do: fix that
-mergeUnifiers (xa : xb : xs) = -- mergeUnifiers (merge xa xb : xs)
-    merge [xb] xs
-    where
-        merge :: [Unifier] -> [Unifier] -> Unifier
-        merge [] [] = []
-        merge (x : xs) [] = x
-        merge stack [x] = plUnifierApplyToUnifier (reverse (concat stack)) x
-        merge stack (xa : xs) =
-            case xa of
-                [] -> merge stack xs
-                _ -> merge (stack ++ [plUnifierApplyToUnifier (reverse (concat stack)) xa]) xs
-    -- case xa of
-    --     [] -> mergeUnifiers (xb : xs) -- skip empty unifiers
-    --     _ -> mergeUnifiers (plUnifierApplyToUnifier xa xb : xs)
-    -- where
-    --     -- reversed
-    --     merge :: Unifier -> Unifier -> Unifier
-    --     merge xs [] = PLEquation (pVar "_") (JustPvar (pVar "_")) : xs
-    --     merge xs (y : ys) = merge (y : xs) ys
 
 testmerge = plUnifierApplyToUnifier
     [PLEquation (pVar "N") (Pterm "s" [Pterm "s" [JustPvar (pVar "zero")]]),
@@ -264,10 +193,25 @@ testmerge = plUnifierApplyToUnifier
     [PLEquation (pVar "K") (Pterm "s" [Pterm "s" [Pterm "zero" []]]),
      PLEquation (pVar "N") (Pterm "s" [Pterm "s" [Pterm "zero" []]])]
 
-prog5 = 
+prog5 =
     [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
      Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])
            [Pterm "sum" [JustPvar (pVar "N"), JustPvar (pVar "M"), JustPvar (pVar "K")]]]
 
 test170 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
     prog5
+
+
+prog6 =
+    [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
+     Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
+     Pfact (Pterm "parent" [Pterm "ivan" [], Pterm "penka" []]),
+     Pfact (Pterm "parent" [Pterm "penka" [], Pterm "asen" []]),
+     Pfact (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "X")]),
+     Prule (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")])
+           [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")], Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]]
+
+test161 = resolve (Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []) prog6
+
+--test_1 = plUnifierApplyToUnifier [PLEquation (pVar "Z") (Pterm "ivan" []), PLEquation (pVar "X") (Pterm "ivan" [])]
+--    [PLEquation]

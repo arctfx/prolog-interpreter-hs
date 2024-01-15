@@ -42,6 +42,7 @@ main =
 -- MODULE MAIN -------------------------------------------------
 
 -- combine is an operator that merges two tokens
+-- ugly but necessary
 combine :: Token -> Token -> Token
 combine (IdentifierTkn str) (LowerLetter ltr) = IdentifierTkn $ str ++ [ltr]
 combine (IdentifierTkn str) (UpperLetter ltr) = IdentifierTkn $ str ++ [ltr]
@@ -356,7 +357,7 @@ getAtoms = do
 skip :: Parse Token
 skip = do accept
 
--- ISSUE: does not recognize nested atoms, but that is not necessary for the functionality of our parser
+-- Note: does not recognize nested atoms, but that is not necessary for the functionality of our parser
 parseAtom :: Parse Token
 parseAtom = do
     token <- getToken
@@ -555,5 +556,4 @@ interpretFile fileName = do
 -- -> Note: Compiler stops after lines that cannot be parsed,
 --      the already parsed lines remain in the program and the compiling is successful
 -- -> Revise error handling
--- -> Revise type architecture
--- -> Clean up code, remove code repetition
+-- -> Remove code repetition

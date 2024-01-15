@@ -3,10 +3,11 @@ module UnitTests where
 import Main
 import Unify
 import Interpret
-import Data.Fixed (HasResolution(resolution))
 
 ----------------------------------------------------------------------------------------------------------
--- MAIN --------------------------------------------------------------------------------------------------
+-- TEST MAIN ---------------------------------------------------------------------------------------------
+
+-- Test interpretFile
 
 test :: IO [Unifier]
 test = do
@@ -19,6 +20,19 @@ test = do
         res = resolve node db
         in return res
 
+test2 :: IO [Unifier]
+test2 = do
+    db <- interpretFile "Tests/test.pl"
+    let
+        -- node = Node [Pterm "proud" [JustPvar (pVar "Z")]] []
+        -- node = Node [Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar "X")]] []
+        node = Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "zero" []]], Pterm "s" [Pterm "s" [Pterm "zero" []]], JustPvar (pVar "X")]] []
+        -- node = Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []
+        res = resolve node db
+        in return res
+
+-- Test compile
+
 test11 = compile "a(b) :- c(d)."
 
 test12 = compile "?- a(b)."
@@ -28,6 +42,7 @@ test13 = compile "a(b(c, d)) :- X."
 
 test14 = compile "a(b, c)"
 -- грешка - редът не завършва с точка
+
 
 ----------------------------------------------------------------------------------------------------------
 -- UNIFY -------------------------------------------------------------------------------------------------
@@ -151,7 +166,7 @@ test53  = plUnify (Pterm "sum" [Pterm "zero" [], Pterm "zero" [], JustPvar (pVar
 --     [Pfact (Pterm "parent" [Pterm "peter" [], Pterm "ann" []]),
 --      Pfact (Pterm "newborn" [Pterm "ann" []])]
 
--- LATEST
+-- TEST PROGRAM 2
 prog2 =
     [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
      Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
@@ -171,6 +186,7 @@ test63 = genn (Node [Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []],
                Pterm "ancestor" [JustPvar (pVar "ivan"), JustPvar (pVar "Z")]]
                [Just [PLEquation (pVar "Y") (Pterm "ivan" [])], Just [PLEquation (pVar "Y") (JustPvar (pVar "Z")), PLEquation (pVar "X") (Pterm "gosho" [])]]) prog2
 
+-- TEST PROGRAM 3
 prog3 = 
     [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
      Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])

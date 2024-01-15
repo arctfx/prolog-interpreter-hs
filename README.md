@@ -89,6 +89,7 @@ resolve tree =
             else continue
         newTree = add nodes to newTree
     return solutions ++ resolve newTree
+    
 ```
 
 Algorithm for generating children nodes (`genn`):
@@ -103,3 +104,4 @@ goal reduction
 
 ## Testing
 _Note: to-do: automize unit tests._
+In the module `UnitTests` are present different test functions that check parts of the logic. For more info view the comments.
