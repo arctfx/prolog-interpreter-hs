@@ -1,3 +1,14 @@
+{-# OPTIONS_GHC -Werror #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fwarn-incomplete-uni-patterns #-}
+-- {-# OPTIONS_GHC -fwarn-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use newtype instead of data" #-}
+{-# OPTIONS_GHC -Wno-noncanonical-monad-instances #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+{-# HLINT ignore "Use <$>" #-}
+
 module UnitTests where
 
 import Main
@@ -243,3 +254,34 @@ test43 = resolve (Node [Pterm "natNumber" [JustPvar (pVar "X")]] []) test_prog
 test44 = mergeUnifiers
     [[PLEquation (Pvar {name = "X", label = 0}) (Pterm "zero" [])],
     [PLEquation (Pvar {name = "X", label = 0}) (Pterm "succ" [JustPvar (Pvar {name = "X", label = 0})])]]
+
+
+testmerge = plUnifierApplyToUnifier
+    [PLEquation (pVar "N") (Pterm "s" [Pterm "s" [JustPvar (pVar "zero")]]),
+     PLEquation (pVar "M") (Pterm "zero" []),
+     PLEquation (pVar "K") (Pterm "s" [JustPvar (pVar "K")])]
+    [PLEquation (pVar "K") (Pterm "s" [Pterm "s" [Pterm "zero" []]]),
+     PLEquation (pVar "N") (Pterm "s" [Pterm "s" [Pterm "zero" []]])]
+
+prog5 =
+    [Pfact (Pterm "sum" [JustPvar (pVar "N"), Pterm "z" [], JustPvar (pVar "N")]),
+     Prule (Pterm "sum" [JustPvar (pVar "N"), Pterm "s" [JustPvar (pVar "M")], Pterm "s" [JustPvar (pVar "K")]])
+           [Pterm "sum" [JustPvar (pVar "N"), JustPvar (pVar "M"), JustPvar (pVar "K")]]]
+
+test170 = resolve (Node [Pterm "sum" [Pterm "s" [Pterm "s" [Pterm "z" []]], Pterm "s" [Pterm "s" [Pterm "z" []]], JustPvar (pVar "X")]] [])
+    prog5
+
+
+prog6 =
+    [Pfact (Pterm "parent" [Pterm "pesho" [], Pterm "gosho" []]),
+     Pfact (Pterm "parent" [Pterm "gosho" [], Pterm "ivan" []]),
+     Pfact (Pterm "parent" [Pterm "ivan" [], Pterm "penka" []]),
+     Pfact (Pterm "parent" [Pterm "penka" [], Pterm "asen" []]),
+     Pfact (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "X")]),
+     Prule (Pterm "ancestor" [JustPvar (pVar "X"), JustPvar (pVar "Z")])
+           [Pterm "parent" [JustPvar (pVar "X"), JustPvar (pVar "Y")], Pterm "ancestor" [JustPvar (pVar "Y"), JustPvar (pVar "Z")]]]
+
+test161 = resolve (Node [Pterm "ancestor" [Pterm "gosho" [], JustPvar (pVar "Y")]] []) prog6
+
+--test_1 = plUnifierApplyToUnifier [PLEquation (pVar "Z") (Pterm "ivan" []), PLEquation (pVar "X") (Pterm "ivan" [])]
+--    [PLEquation]

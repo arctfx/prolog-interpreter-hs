@@ -27,7 +27,7 @@ executable prolog-interpreter-hs
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:    Tokenize, Unify, Interpret, UnitTests
+    other-modules:    Tokenize, Parse, Unify, Interpret, UnitTests
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

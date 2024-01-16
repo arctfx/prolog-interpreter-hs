@@ -1,5 +1,17 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use newtype instead of data" #-}
+
+{-# OPTIONS_GHC -Werror #-}
+-- {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fwarn-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -fwarn-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use newtype instead of data" #-}
+{-# OPTIONS_GHC -Wno-noncanonical-monad-instances #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+{-# HLINT ignore "Use <$>" #-}
+
 module Unify where
 
 import Tokenize
