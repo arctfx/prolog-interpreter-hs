@@ -23,6 +23,9 @@ If the query is not parsed correctly, the program should return the empty list.
 
 _Issue: if the query ends with a space character the program may go in a state of infinite recursion. It should be fixed in the near future._
 
+If no solutions are found _or_ the query is _tautology_ then the program will return the empty list. 
+_Note: yes and no answers should be added in the future._
+ 
 ## Tokens
 A prolog program has the following syntax:
 ```
@@ -133,6 +136,8 @@ foreach eq in θx:
                 break
         break
 ```
+
+The function ```limit``` filters the equations that are needed to form a complete solution _(however the impementation is not optimal)_
 
 ## Testing
 _Note: to-do: add HUnit._
