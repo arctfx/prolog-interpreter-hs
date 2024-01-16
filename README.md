@@ -20,6 +20,7 @@ After successfully compiling the prolog file, one may enter queries in the follo
 where ```<atom>``` is defined under the _tokens_ paragraph.
 
 If the query is not parsed correctly, the program should return the empty list.
+
 _Issue: if the query ends with a space character the program may go in a state of infinite recursion. It should be fixed in the near future._
 
 ## Tokens
@@ -41,10 +42,15 @@ Valid statements are rules, facts and queries.
 ## Parsing
 Parsers are applied in the following order:
 Firstly, the file is divided into an array of symbols that go through `parserA`. `parserA` reads strings and operators.
+
 `parserB` removes unnecessary spaces.
+
 `parserC` reads terms with nesting.
+
 `parserD` reads atoms without nesting, which means nested atoms are treated as terms. This is not an issue when converting to intermediate representation.
+
 `parserE` reads facts, rules and queries.
+
 
 The `ast` function generates abstract syntax tree from the tokenized statements.
 The `compileFile` function parses a text file and returns a Program object of AST. If the parsing is unsuccessful, then the function returns Nothing.
