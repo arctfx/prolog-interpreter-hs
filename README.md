@@ -42,13 +42,9 @@ Valid statements are rules, facts and queries.
 ## Parsing
 Parsers are applied in the following order:
 Firstly, the file is divided into an array of symbols that go through `parserA`. `parserA` reads strings and operators.
-
 `parserB` removes unnecessary spaces.
-
 `parserC` reads terms with nesting.
-
 `parserD` reads atoms without nesting, which means nested atoms are treated as terms. This is not an issue when converting to intermediate representation.
-
 `parserE` reads facts, rules and queries.
 
 
